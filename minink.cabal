@@ -22,7 +22,10 @@ executable minink-sender
   build-depends:       base >=4.10 && <4.11,
                        minink,
                        sqlite-simple,
-                       datetime
+                       datetime,
+                       HaskellNet-SSL,
+                       HaskellNet,
+                       text
   hs-source-dirs:      src-send
   default-language:    Haskell2010
 
