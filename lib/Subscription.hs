@@ -1,13 +1,12 @@
-module Subscription(Subscription(..), SubscriptionRequest(..)) where
+module Subscription(Subscription(..)) where
 
-data SubscriptionRequest = SubscriptionRequest
-  { srsecretSR :: String
-  , sraddressSR :: String
-  }
+import Database.SQLite.Simple.FromRow
 
 data Subscription = Subscription
   { phaseS :: Int
   , lastSentS :: Integer
   , addressS :: String
-  }
+  } deriving (Show)
 
+instance FromRow Subscription where
+  fromRow = Subscription <$> field <*> field <*> field
