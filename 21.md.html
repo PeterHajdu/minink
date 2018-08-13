@@ -1,0 +1,91 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+  <link href="data:text/css;charset=utf-8,img%20%7B%0Amax%2Dwidth%3A%20128px%3B%0Afloat%3A%20left%3B%0Amargin%3A%2018px%3B%0A%7D%0Abody%20%7B%0Amargin%3A40px%20auto%3B%0Amax%2Dwidth%3A650px%3B%0Aline%2Dheight%3A1%2E6%3B%0Afont%2Dsize%3A18px%3B%0Acolor%3A%23444%3B%0Apadding%3A0%2010px%3B%0A%7D%0Ah1%2Ch2%2Ch3%20%7B%0Aline%2Dheight%3A1%2E2%3B%0A%7D%0A" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<h1 id="input-output">Input / Output</h1>
+<p>Why would you write a program without interacting with the real world? If there is no observable behavior of your program, than it might not even exist. The <em>IO</em> type is responsible in Haskell to describe a program's interaction with the outside world.</p>
+<h2 id="the-io-type">The IO type</h2>
+<p>Let's have a look at the type signature of a few functions that interact with the outside world.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell">getLine<span class="ot"> ::</span> <span class="dt">IO</span> <span class="dt">String</span></code></pre></div>
+<p>The <em>getLine</em> function reads a line from the command line. Let's have a look at the type of the return value. We have <em>String</em> in there which stands for the line that is read from the command line. <em>IO</em> is a type that expects one type parameter, in this case it is <em>String</em>. We have seen types with type parameters already (<em>[Int], Maybe String, Either Int Bool</em>). IO is just one of them.</p>
+<p><em>IO a</em> describes an action that will eventually result in a value of type <em>a</em>. <em>getLine</em> is an action that when it gets executed will result in a value of type <em>String</em>. Think about these actions as recipes. It is a list of things to do. When your program is executed they are going to be cooked. Until then they are just arbitrary values with a type of <em>IO a</em>.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell">putStrLn<span class="ot"> ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</code></pre></div>
+<p>The putStrLn function prints its first parameter to the screen. The return value is much more interesting. <em>()</em> is called unit. Unit has one possible value <em>()</em>.</p>
+<p>It would look like this as an ADT:</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">data</span> () <span class="fu">=</span> ()</code></pre></div>
+<p>Let's get back to the original type <em>IO ()</em>. <em>putStrLn</em> describes an <em>IO</em> action that when executed will result in a value of type <em>()</em>. In this case <em>()</em> is just a placeholder, since IO has to have a type parameter, but an action that prints to the screen has nothing meaningful to return with.</p>
+<h2 id="purity">Purity</h2>
+<p>Haskell is a pure language. This means that if I call a function with the same parameters it will return the same value every time. Languages like python are not pure. A python function might set a global random seed. Functions depending on this random seed generate an unexpected value every time the seed is modified. The functions modifying the random seed and generator have side effects, in this case they mutate global state. If functions are allowed to have side effects, the language can not be pure.</p>
+<p>We have just seen two functions that interact with the user. Printing to the screen changes the state of the world. Isn't that global mutable state? If I read a line from the console, it returns a different line every time I execute it. How is Haskell pure than?</p>
+<p>The answer to all of this questions lies in the fact that the functions interacting with the world return a value of type <em>IO a</em>, not <em>a</em>. They just describe the action that is going to happen when they are executed. However the action is the same every time.</p>
+<p><em>putStrLn &quot;hello&quot;</em> will return an <em>IO</em> action that prints out &quot;hello&quot; to the screen every time it is called. The <em>IO</em> action is the same as long as the parameters are the same.</p>
+<h2 id="example">Example</h2>
+<p>Create a file Greet.hs with the following content:</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span>
+
+<span class="ot">readName ::</span> <span class="dt">IO</span> <span class="dt">String</span>
+readName <span class="fu">=</span> <span class="kw">do</span>
+  putStrLn <span class="st">&quot;What is your name?&quot;</span>
+  getLine
+
+<span class="ot">main ::</span> <span class="dt">IO</span> ()
+main <span class="fu">=</span> <span class="kw">do</span>
+  name <span class="ot">&lt;-</span> readName
+  putStrLn (<span class="st">&quot;It is nice to meet you &quot;</span> <span class="fu">++</span> name <span class="fu">++</span> <span class="st">&quot;!&quot;</span>)</code></pre></div>
+<p>Compile it with <em>ghc</em> and start it.</p>
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash">$ <span class="ex">ghc</span> ./Greet.hs
+$ <span class="ex">./Greet</span></code></pre></div>
+<p>There are a lot of interesting things here that we will explain only in the next lecture. Try to use the patterns in the example to complete the exercises.</p>
+<h2 id="exercise">Exercise</h2>
+<ul>
+<li>Create the type <em>Person</em> that has the following fields: <em>name</em>, <em>age</em>. (age can be String for now)</li>
+<li>Ask the user to enter a name and an age.</li>
+<li>Build a value of type <em>Person</em> with the values entered by the user.</li>
+<li>Print out the value you have created.</li>
+</ul>
+</body>
+</html>

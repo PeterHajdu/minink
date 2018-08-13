@@ -11,11 +11,13 @@ import Network.HaskellNet.SMTP
 import Network.HaskellNet.Auth
 import Network.HaskellNet.SMTP.SSL
 import qualified Data.Text.Lazy as T
+import qualified Data.Text.IO as TIO
 
 sendEmail :: SMTPConnection -> Integer -> Connection -> Subscription -> IO ()
 sendEmail smtpConn today conn subs = do
   print subs
-  sendPlainTextMail (addressS subs) "peter.ferenc.hajdu@gmail.com" "minink daily mail" (T.pack $ show subs) smtpConn
+  htmlContent <- T.fromStrict <$> TIO.readFile "21.md.html"
+  sendMimeMail (addressS subs) "peter.ferenc.hajdu@gmail.com" "minink daily mail" "" htmlContent [] smtpConn
   executeNamed conn "UPDATE subscription SET phase = :phase, lastsent = :lastsent WHERE address = :address" [":phase" := (phaseS subs) + 1, ":lastsent" := today, ":address" := (addressS subs)]
 
 haveNotSentToday :: (Integer, Int, Int) -> Subscription -> Bool
@@ -34,3 +36,4 @@ main = do
   let shouldSend = filter (haveNotSentToday gregorian) subscriptions
   mapM_ (sendEmail smtpConn (toSeconds today) conn) shouldSend
   close conn
+  closeSMTP smtpConn
