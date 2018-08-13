@@ -16,7 +16,8 @@ import qualified Data.Text.IO as TIO
 sendEmail :: SMTPConnection -> Integer -> Connection -> Subscription -> IO ()
 sendEmail smtpConn today conn subs = do
   print subs
-  htmlContent <- T.fromStrict <$> TIO.readFile "21.md.html"
+  let filename = show $ phaseS subs
+  htmlContent <- T.fromStrict <$> TIO.readFile filename
   sendMimeMail (addressS subs) "peter.ferenc.hajdu@gmail.com" "minink daily mail" "" htmlContent [] smtpConn
   executeNamed conn "UPDATE subscription SET phase = :phase, lastsent = :lastsent WHERE address = :address" [":phase" := (phaseS subs) + 1, ":lastsent" := today, ":address" := (addressS subs)]
 

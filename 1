@@ -1,0 +1,95 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+  <link href="data:text/css;charset=utf-8,img%20%7B%0Amax%2Dwidth%3A%20128px%3B%0Afloat%3A%20left%3B%0Amargin%3A%2018px%3B%0A%7D%0Abody%20%7B%0Amargin%3A40px%20auto%3B%0Amax%2Dwidth%3A650px%3B%0Aline%2Dheight%3A1%2E6%3B%0Afont%2Dsize%3A18px%3B%0Acolor%3A%23444%3B%0Apadding%3A0%2010px%3B%0A%7D%0Ah1%2Ch2%2Ch3%20%7B%0Aline%2Dheight%3A1%2E2%3B%0A%7D%0A" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<h1 id="input-output">Input / Output</h1>
+<p>Let's revisit the functions in the example from yesterday.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="ot">readName ::</span> <span class="dt">IO</span> <span class="dt">String</span>
+readName <span class="fu">=</span> <span class="kw">do</span>
+  putStrLn <span class="st">&quot;What is your name?&quot;</span>
+  getLine</code></pre></div>
+<p>The <em>readName</em> function has to return an action that will produce a string. The definition starts with the <em>do</em> keyword. The <em>do</em> keyword allows us to write IO code that looks very similar to imperative programs. We will see how to write IO code without <em>do</em> notation. <em>getLine</em> in the last line of the definition will return with a value of type <em>IO String</em>. That is the same as the <em>readName</em> function's return value. When using <em>do</em> notation the last line's value is going to be returned from the function.</p>
+<h2 id="exercise">Exercise</h2>
+<ul>
+<li>What is the type of <em>putStrLn &quot;What is your name?</em></li>
+<li>Delete the last line of <em>readName</em> and try to compile the code.</li>
+<li>The <em>return</em> function let's you construct IO actions that produce the value that is passed to it as a parameter. The type of <em>return True</em> is <em>IO Boolean</em>. It will produce the value True when evaluated. Try to fix the <em>readName</em> function using <em>return</em>.</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="ot">main ::</span> <span class="dt">IO</span> ()
+main <span class="fu">=</span> <span class="kw">do</span>
+  name <span class="ot">&lt;-</span> readName
+  putStrLn (<span class="st">&quot;It is nice to meet you &quot;</span> <span class="fu">++</span> name <span class="fu">++</span> <span class="st">&quot;!&quot;</span>)</code></pre></div>
+<p>The type of main is <em>IO ()</em>. It has the same type as the last line in the <em>do</em> block (<em>putStrLn ...</em>). The second line is more interesting. Inside a <em>do</em> block you can extract the value of other <em>IO</em> actions. The type of <em>readName</em> is <em>IO String</em> and the type of <em>name</em> is <em>String</em>. The left arrow notation can be used only to extract values from actions. If you would like to define values that are constructed by plain functions without any IO action, you can use <em>let</em>.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">import </span><span class="dt">Data.Char</span>
+
+<span class="ot">main ::</span> <span class="dt">IO</span> ()
+main <span class="fu">=</span> <span class="kw">do</span>
+  name <span class="ot">&lt;-</span> readName
+  <span class="kw">let</span> capitalizedName <span class="fu">=</span> capitalize name
+  putStrLn (<span class="st">&quot;It is nice to meet you &quot;</span> <span class="fu">++</span> capitalizedName <span class="fu">++</span> <span class="st">&quot;!&quot;</span>)
+  <span class="kw">where</span><span class="ot"> capitalize ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">String</span>
+        capitalize <span class="fu">=</span> map toUpper</code></pre></div>
+<p><em>capitalizedName</em> is a simple <em>String</em> just as <em>capitalize name</em>.</p>
+<h2 id="exercise-1">Exercise</h2>
+<ul>
+<li>The <em>readMaybe</em> function can be used to parse values of types that implement the <em>Read</em> typeclass. It returns with <em>Maybe</em>. If it fails to parse the value it returns <em>Nothing</em>. Try out the following lines in ghci.</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">import </span><span class="dt">Text.Read</span>
+
+<span class="fu">:</span>t readMaybe
+<span class="ot">readMaybe ::</span> <span class="dt">Read</span> a <span class="ot">=&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> a
+readMaybe <span class="st">&quot;10&quot;</span><span class="ot"> ::</span> <span class="dt">Maybe</span> <span class="dt">Int</span>
+readMaybe <span class="st">&quot;10&quot;</span><span class="ot"> ::</span> <span class="dt">Maybe</span> <span class="dt">Double</span>
+readMaybe <span class="st">&quot;foo&quot;</span><span class="ot"> ::</span> <span class="dt">Maybe</span> <span class="dt">Int</span></code></pre></div>
+<ul>
+<li>Write a function that reads a string from the user and inside the function it converts it to an Int using <em>readMaybe</em>. (hint: The type should reflect the possibility of failure. Don't forget to import the <em>Text.Read</em> module.)</li>
+<li>Modify the function to keep asking for a number until the user enters a valid input. The type signature should be <em>IO Int</em>. (hint: Case expressions are allowed in <em>do</em> notation. Use recursion. You can construct IO actions from arbitrary values using <em>return</em>.)</li>
+<li>Is it possible to write a function that prints to the screen or reads some input whose return type does not contain <em>IO</em>?</li>
+<li>Is it possible to call a function whose return type does not contain <em>IO</em>, but deep in the stack, it calls a function with a return type containing <em>IO</em>?</li>
+</ul>
+</body>
+</html>
