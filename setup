@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+mkdir -p ~/.minink/lessons
+sqlite3 ~/.minink/subscriptions.db 'create table subscription (phase int, lastsent long, address text);'
+
