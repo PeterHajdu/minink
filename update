@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+OLDHEAD=$(git rev-parse HEAD)
+git pull origin --rebase master
+NEWHEAD=$(git rev-parse HEAD)
+
+if [ "$OLDHEAD" == "$NEWHEAD" ]; then
+  echo "did not change"
+  exit 0;
+fi
+
+git clean -xfd
+cabal new-build
+SENDER_PATH=$(find . -iname "*minink-send*" | tail -1)
+cp $SENDER_PATH /home/minink/.local/bin
