@@ -12,11 +12,10 @@ import Network.HaskellNet.Auth
 import Network.HaskellNet.SMTP.SSL
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.IO as TIO
+import System.Environment (lookupEnv)
 
-mininkBase = "/home/minink/.minink/"
-
-sendEmail :: SMTPConnection -> Integer -> Connection -> Subscription -> IO ()
-sendEmail smtpConn today conn subs = do
+sendEmail :: String -> SMTPConnection -> Integer -> Connection -> Subscription -> IO ()
+sendEmail mininkBase smtpConn today conn subs = do
   print subs
   let lessonBase = mininkBase ++ "lessons/"
   let filename = lessonBase ++ (show $ phaseS subs)
@@ -28,8 +27,9 @@ haveNotSentToday :: (Integer, Int, Int) -> Subscription -> Bool
 haveNotSentToday today (Subscription _ lastSent _) = let date = toGregorian' $ fromSeconds lastSent
                                                      in date /= today
 
-main :: IO ()
-main = do
+
+runSender :: String -> IO ()
+runSender mininkBase = do
   smtpConn <- connectSMTPSTARTTLSWithSettings "smtp.gmail.com" (Settings 587 0 True True)
   result <- authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
 
@@ -38,6 +38,13 @@ main = do
   today <- getCurrentTime
   let gregorian = toGregorian' today
   let shouldSend = filter (haveNotSentToday gregorian) subscriptions
-  mapM_ (sendEmail smtpConn (toSeconds today) conn) shouldSend
+  mapM_ (sendEmail mininkBase smtpConn (toSeconds today) conn) shouldSend
   close conn
   closeSMTP smtpConn
+
+
+main :: IO ()
+main = do
+  maybeHome <- lookupEnv "HOME"
+  let mininkBase = (++ "/.minink/") <$> maybeHome
+  maybe (pure ()) runSender mininkBase
