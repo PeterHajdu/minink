@@ -1,0 +1,2 @@
+30 12 * * * /home/minink/.local/bin/minink-sender > /dev/null
+* * * * * cd /home/minink/minink && ./update 2>1 > /dev/null
