@@ -35,3 +35,12 @@ library
   hs-source-dirs:      lib
   exposed-modules:     Subscription
   default-language:    Haskell2010
+
+test-suite sender-tests
+  type:                exitcode-stdio-1.0
+  build-depends:       base >= 4.10 && <4.11,
+                       minink,
+                       hspec
+  hs-source-dirs:      test
+  default-language:    Haskell2010
+  main-is:             Test.hs
