@@ -7,6 +7,7 @@ import SubscriptionDb
 import Subscription
 import Time
 import Data.DateTime (fromSeconds, toGregorian')
+import Data.Either (either)
 
 import Control.Monad (void)
 
@@ -19,10 +20,17 @@ send :: EmailSender m => Integer -> Subscription -> m ()
 send currentTime (Subscription _ lastSent subscriber) =
   if areOnSameDay currentTime lastSent then return () else void $ sendEmail subscriber ""
 
-sendDailyMails :: (Epoch m, EmailSender m, SubscriptionDb m) => m (Either String ())
-sendDailyMails = do
-  (Right subs) <- loadSubscriptions
-  currentTime <- currentTimeInEpoch
+sendEmailForToday :: EmailSender m => Integer -> [Subscription] -> m (Either [String] ())
+sendEmailForToday currentTime subs = do
   mapM_ (send currentTime) subs
   return $ Right ()
+
+handleDbError :: Monad m => String -> m (Either [String] ())
+handleDbError errorMsg = return $ Left [errorMsg]
+
+sendDailyMails :: (Epoch m, EmailSender m, SubscriptionDb m) => m (Either [String] ())
+sendDailyMails = do
+  currentTime <- currentTimeInEpoch
+  maybeSubs <- loadSubscriptions
+  either handleDbError (sendEmailForToday currentTime) maybeSubs
 

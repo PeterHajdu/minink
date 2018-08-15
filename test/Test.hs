@@ -39,7 +39,7 @@ instance SubscriptionDb MockSender where
 instance Epoch MockSender where
   currentTimeInEpoch = return today
 
-runMock :: MockState -> (Either String (), MockState)
+runMock :: MockState -> (Either [String] (), MockState)
 runMock initState = runState (run sendDailyMails) initState
 
 a1 :: String
@@ -48,7 +48,7 @@ a1 = "a@b.com"
 a2 :: String
 a2 = "b@c.com"
 
-runWithSubsAndEpoch :: Either String [Subscription] -> (Either String (), MockState)
+runWithSubsAndEpoch :: Either String [Subscription] -> (Either [String] (), MockState)
 runWithSubsAndEpoch subs = runMock $ MockState subs []
 
 needsMail :: String -> Subscription
@@ -71,3 +71,9 @@ main = hspec $ do
       let addresses = fst <$> emails
       result `shouldBe` (Right ())
       addresses `shouldBe` [a1]
+
+    it "should return if there's a db error" $ do
+      let errorMsg = "unable to access db"
+      let (result, MockState _ emails) = runWithSubsAndEpoch (Left errorMsg)
+      result `shouldBe` (Left [errorMsg])
+
