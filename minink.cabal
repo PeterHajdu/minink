@@ -31,16 +31,24 @@ executable minink-sender
 
 library
   build-depends:       base >=4.10 && <4.11,
-                       sqlite-simple
+                       sqlite-simple,
+                       text,
+                       datetime
   hs-source-dirs:      lib
-  exposed-modules:     Subscription
+  exposed-modules:     Subscription,
+                       EmailSender,
+                       SubscriptionDb,
+                       MininkSend,
+                       Time
   default-language:    Haskell2010
 
 test-suite sender-tests
   type:                exitcode-stdio-1.0
   build-depends:       base >= 4.10 && <4.11,
                        minink,
-                       hspec
+                       hspec,
+                       mtl,
+                       text
   hs-source-dirs:      test
   default-language:    Haskell2010
   main-is:             Test.hs
