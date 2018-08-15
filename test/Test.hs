@@ -9,7 +9,7 @@ import EmailSender
 import Subscription
 import SubscriptionDb
 import Control.Monad.State.Strict (State, runState)
-import Control.Monad.State (MonadState, modify, get)
+import Control.Monad.State (MonadState, put, get)
 import Test.Hspec
 import qualified Data.Text.Lazy as LT
 
@@ -20,20 +20,26 @@ today :: Integer
 today = 100000
 
 data MockState = MockState
-  { subscriptionsInDb :: Either String [Subscription]
+  { emailSendResults :: [Either String ()]
+  , subscriptionsInDb :: Either String [Subscription]
   , emailsSentOut :: [(String, LT.Text)]
   }
 
 newtype MockSender a = MockSender {run :: State MockState a} deriving (Functor, Applicative, Monad, MonadState MockState)
 
+safeTail :: [a] -> [a]
+safeTail (x:xs) = xs
+safeTail [] = []
+
 instance EmailSender MockSender where
   sendEmail address content = do
-    modify $ \s@(MockState _ emails) -> s {emailsSentOut = emails ++ [(address, content)]}
-    return $ Right ()
+    s@(MockState results _ emails) <- get
+    put $ s {emailsSentOut = emails ++ [(address, content)], emailSendResults = safeTail results}
+    return $ head results
 
 instance SubscriptionDb MockSender where
   loadSubscriptions = do
-    (MockState subs _) <- get
+    (MockState _ subs _) <- get
     return subs
 
 instance Epoch MockSender where
@@ -48,8 +54,16 @@ a1 = "a@b.com"
 a2 :: String
 a2 = "b@c.com"
 
-runWithSubsAndEpoch :: Either String [Subscription] -> (Either [String] (), MockState)
-runWithSubsAndEpoch subs = runMock $ MockState subs []
+a3 :: String
+a3 = "c@d.com"
+
+allEmailSucceeds = repeat (Right ())
+
+runWithSubs :: Either String [Subscription] -> (Either [String] (), MockState)
+runWithSubs subs = runMock $ MockState allEmailSucceeds subs []
+
+runWithSubsAndEmailError :: Either String [Subscription] -> [Either String ()] -> (Either [String] (), MockState)
+runWithSubsAndEmailError subs emailresults = runMock $ MockState emailresults subs []
 
 needsMail :: String -> Subscription
 needsMail address = Subscription 0 longAgo address
@@ -61,19 +75,23 @@ main :: IO ()
 main = hspec $ do
   describe "sending mail" $ do
     it "should send email to all subscribers" $ do
-      let (result, MockState _ emails) = runWithSubsAndEpoch (Right [needsMail a1, needsMail a2])
+      let (result, MockState _ _ emails) = runWithSubs (Right [needsMail a1, needsMail a2])
       let addresses = fst <$> emails
       result `shouldBe` (Right ())
       addresses `shouldBe` [a1, a2]
 
     it "should send email to a subscriber only once a day" $ do
-      let (result, MockState _ emails) = runWithSubsAndEpoch (Right [needsMail a1, doesNotNeedMail a2])
+      let (result, MockState _ _ emails) = runWithSubs (Right [needsMail a1, doesNotNeedMail a2])
       let addresses = fst <$> emails
       result `shouldBe` (Right ())
       addresses `shouldBe` [a1]
 
     it "should return if there's a db error" $ do
       let errorMsg = "unable to access db"
-      let (result, MockState _ emails) = runWithSubsAndEpoch (Left errorMsg)
+      let (result, MockState _ _ emails) = runWithSubs (Left errorMsg)
       result `shouldBe` (Left [errorMsg])
 
+    it "should return errors from email sending" $ do
+      let errorMsg = "unable to access db"
+      let (result, MockState _ _ emails) = runWithSubsAndEmailError (Right [needsMail a1, needsMail a2, needsMail a3]) [Left "some error", Right (), Left "another error"]
+      result `shouldBe` (Left ["some error", "another error"])
