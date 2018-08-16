@@ -4,3 +4,4 @@ import Subscription
 
 class Monad m => SubscriptionDb m where
   loadSubscriptions :: m (Either String [Subscription])
+  updateSubscription :: Subscription -> m (Either String ())

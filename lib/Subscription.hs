@@ -6,7 +6,7 @@ data Subscription = Subscription
   { phaseS :: Int
   , lastSentS :: Integer
   , addressS :: String
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 instance FromRow Subscription where
   fromRow = Subscription <$> field <*> field <*> field
