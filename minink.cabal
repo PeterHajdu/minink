@@ -25,7 +25,9 @@ executable minink-sender
                        datetime,
                        HaskellNet-SSL,
                        HaskellNet,
-                       text
+                       mtl,
+                       text,
+                       directory
   hs-source-dirs:      src-send
   default-language:    Haskell2010
 
