@@ -24,6 +24,7 @@ data MockState = MockState
   , subscriptionsInDb :: Either String [Subscription]
   , emailsSentOut :: [(String, LT.Text)]
   , updatedSubscriptions :: [Subscription]
+  , updateResults :: [Either String ()]
   }
 
 newtype MockSender a = MockSender {run :: State MockState a} deriving (Functor, Applicative, Monad, MonadState MockState)
@@ -34,19 +35,19 @@ safeTail [] = []
 
 instance EmailSender MockSender where
   sendEmail address content = do
-    s@(MockState results _ emails _) <- get
+    s@(MockState results _ emails _ _) <- get
     put $ s {emailsSentOut = emails ++ [(address, content)], emailSendResults = safeTail results}
     return $ head results
 
 instance SubscriptionDb MockSender where
   loadSubscriptions = do
-    (MockState _ subs _ _) <- get
+    (MockState _ subs _ _ _) <- get
     return subs
 
   updateSubscription subs = do
-    s@(MockState _ _ _ updatedSubs) <- get
-    put $ s {updatedSubscriptions = updatedSubs ++ [subs]}
-    return $ Right ()
+    s@(MockState _ _ _ updatedSubs updateRes) <- get
+    put $ s {updatedSubscriptions = updatedSubs ++ [subs], updateResults = safeTail updateRes}
+    return $ head updateRes
 
 instance Epoch MockSender where
   currentTimeInEpoch = return today
@@ -63,13 +64,16 @@ a2 = "b@c.com"
 a3 :: String
 a3 = "c@d.com"
 
-allEmailSucceeds = repeat (Right ())
+allSucceeds = repeat (Right ())
 
 runWithSubs :: Either String [Subscription] -> (Either [String] (), MockState)
-runWithSubs subs = runMock $ MockState allEmailSucceeds subs [] []
+runWithSubs subs = runMock $ MockState allSucceeds subs [] [] allSucceeds
 
-runWithSubsAndEmailError :: Either String [Subscription] -> [Either String ()] -> (Either [String] (), MockState)
-runWithSubsAndEmailError subs emailresults = runMock $ MockState emailresults subs [] []
+runWithSubsAndEmailError :: [Subscription] -> [Either String ()] -> (Either [String] (), MockState)
+runWithSubsAndEmailError subs emailresults = runMock $ MockState emailresults (Right $ subs) [] [] allSucceeds
+
+runWithSubsAndUpdateError :: [Subscription] -> [Either String ()] -> Either [String] ()
+runWithSubsAndUpdateError subs updateResult = fst $ runMock $ MockState allSucceeds (Right $ subs) [] [] updateResult
 
 needsMail :: String -> Subscription
 needsMail address = Subscription 0 longAgo address
@@ -79,6 +83,8 @@ nextPhase s@(Subscription oldPhase _ _) = s {phaseS = oldPhase + 1, lastSentS = 
 
 doesNotNeedMail :: String -> Subscription
 doesNotNeedMail address = Subscription 0 today address
+
+errorMsg = "unable to access db"
 
 main :: IO ()
 main = hspec $ do
@@ -96,15 +102,19 @@ main = hspec $ do
       addresses `shouldBe` [a1]
 
     it "should return if there's a db error" $ do
-      let errorMsg = "unable to access db"
       let (result, _) = runWithSubs (Left errorMsg)
       result `shouldBe` (Left [errorMsg])
 
     it "should return errors from email sending" $ do
-      let (result, _) = runWithSubsAndEmailError (Right [needsMail a1, needsMail a2, needsMail a3]) [Left "some error", Right (), Left "another error"]
+      let (result, _) = runWithSubsAndEmailError [needsMail a1, needsMail a2, needsMail a3] [Left "some error", Right (), Left "another error"]
       result `shouldBe` (Left ["some error", "another error"])
 
     it "should increment the phase of subscriptions where email sending succeeds" $ do
       let (s1, s2) = (needsMail a1, needsMail a2)
-      let (result, state) = runWithSubsAndEmailError (Right [s1, s2]) [Right (), Left "some error"]
+      let (result, state) = runWithSubsAndEmailError [s1, s2] [Right (), Left "some error"]
       (updatedSubscriptions state) `shouldBe` [nextPhase s1]
+
+    it "should return the error messages if subscription update fails" $ do
+      let result = runWithSubsAndUpdateError [needsMail a1, needsMail a2, needsMail a3] [Right (), Left errorMsg, Right ()]
+      result `shouldBe` (Left [errorMsg])
+
