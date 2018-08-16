@@ -39,7 +39,8 @@ library
                        EmailSender,
                        SubscriptionDb,
                        MininkSend,
-                       Time
+                       Time,
+                       LessonDb
   default-language:    Haskell2010
 
 test-suite sender-tests

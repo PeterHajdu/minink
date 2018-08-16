@@ -4,6 +4,7 @@
 module Main where
 
 import MininkSend
+import LessonDb
 import Time
 import EmailSender
 import Subscription
@@ -25,6 +26,7 @@ data MockState = MockState
   , emailsSentOut :: [(String, LT.Text)]
   , updatedSubscriptions :: [Subscription]
   , updateResults :: [Either String ()]
+  , lessonResults :: [Either String RetrieveResult]
   }
 
 newtype MockSender a = MockSender {run :: State MockState a} deriving (Functor, Applicative, Monad, MonadState MockState)
@@ -35,22 +37,28 @@ safeTail [] = []
 
 instance EmailSender MockSender where
   sendEmail address content = do
-    s@(MockState results _ emails _ _) <- get
+    s@(MockState results _ emails _ _ _) <- get
     put $ s {emailsSentOut = emails ++ [(address, content)], emailSendResults = safeTail results}
     return $ head results
 
 instance SubscriptionDb MockSender where
   loadSubscriptions = do
-    (MockState _ subs _ _ _) <- get
+    (MockState _ subs _ _ _ _) <- get
     return subs
 
   updateSubscription subs = do
-    s@(MockState _ _ _ updatedSubs updateRes) <- get
+    s@(MockState _ _ _ updatedSubs updateRes _) <- get
     put $ s {updatedSubscriptions = updatedSubs ++ [subs], updateResults = safeTail updateRes}
     return $ head updateRes
 
 instance Epoch MockSender where
   currentTimeInEpoch = return today
+
+instance LessonDb MockSender where
+  retrieveLesson _ = do
+    s@(MockState _ _ _ _ _ results) <- get
+    put $ s {lessonResults = safeTail results}
+    return $ head results
 
 runMock :: MockState -> (Either [String] (), MockState)
 runMock initState = runState (run sendDailyMails) initState
@@ -65,15 +73,19 @@ a3 :: String
 a3 = "c@d.com"
 
 allSucceeds = repeat (Right ())
+allLessons = repeat (Right $ Lesson "a lesson")
 
 runWithSubs :: Either String [Subscription] -> (Either [String] (), MockState)
-runWithSubs subs = runMock $ MockState allSucceeds subs [] [] allSucceeds
+runWithSubs subs = runMock $ MockState allSucceeds subs [] [] allSucceeds allLessons
 
 runWithSubsAndEmailError :: [Subscription] -> [Either String ()] -> (Either [String] (), MockState)
-runWithSubsAndEmailError subs emailresults = runMock $ MockState emailresults (Right $ subs) [] [] allSucceeds
+runWithSubsAndEmailError subs emailresults = runMock $ MockState emailresults (Right $ subs) [] [] allSucceeds allLessons
 
 runWithSubsAndUpdateError :: [Subscription] -> [Either String ()] -> Either [String] ()
-runWithSubsAndUpdateError subs updateResult = fst $ runMock $ MockState allSucceeds (Right $ subs) [] [] updateResult
+runWithSubsAndUpdateError subs updateResult = fst $ runMock $ MockState allSucceeds (Right $ subs) [] [] updateResult allLessons
+
+runWithSubsAndLessonDbError ::[Subscription] -> [Either String RetrieveResult] -> (Either [String] (), MockState)
+runWithSubsAndLessonDbError subs retrieveResults = runMock $ MockState allSucceeds (Right subs) [] [] allSucceeds retrieveResults
 
 needsMail :: String -> Subscription
 needsMail address = Subscription 0 longAgo address
@@ -92,8 +104,10 @@ main = hspec $ do
     it "should send email to all subscribers" $ do
       let (result, state) = runWithSubs (Right [needsMail a1, needsMail a2])
       let addresses = fst <$> (emailsSentOut state)
+      let emails = snd <$> (emailsSentOut state)
       result `shouldBe` (Right ())
       addresses `shouldBe` [a1, a2]
+      emails `shouldBe` ["a lesson", "a lesson"]
 
     it "should send email to a subscriber only once a day" $ do
       let (result, state) = runWithSubs (Right [needsMail a1, doesNotNeedMail a2])
@@ -118,3 +132,11 @@ main = hspec $ do
       let result = runWithSubsAndUpdateError [needsMail a1, needsMail a2, needsMail a3] [Right (), Left errorMsg, Right ()]
       result `shouldBe` (Left [errorMsg])
 
+    it "should not send email if the subscription is over" $ do
+      let (result, state) = runWithSubsAndLessonDbError [needsMail a1] [Right Finished]
+      result `shouldBe` (Right ())
+      (emailsSentOut state) `shouldBe` []
+
+    it "should return the error messages of lesson retrieval" $ do
+      let (result, state) = runWithSubsAndLessonDbError [needsMail a1] [Left errorMsg]
+      result `shouldBe` (Left [errorMsg])

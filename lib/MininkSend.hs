@@ -2,6 +2,7 @@
 
 module MininkSend(sendDailyMails) where
 
+import LessonDb
 import EmailSender
 import SubscriptionDb
 import Subscription
@@ -19,24 +20,33 @@ areOnSameDay t1 t2 = (toDayPrecision t1) == (toDayPrecision t2)
 shouldUpdate :: Integer -> Subscription -> Bool
 shouldUpdate currentTime (Subscription _ lastSent _) = not $ areOnSameDay currentTime lastSent
 
-send :: EmailSender m => Subscription -> m (Either String ())
-send (Subscription _ _ subscriber) = sendEmail subscriber ""
+send :: EmailSender m => RetrieveResult -> Subscription -> m (Either String ())
+send (Lesson content) (Subscription _ _ subscriber) = sendEmail subscriber content
+send Finished _ = return $ Right ()
 
-sendEmailForToday :: (SubscriptionDb m, EmailSender m) => Integer -> [Subscription] -> m [Either String ()]
-sendEmailForToday currentTime subs = do
+sendEmailForToday :: (LessonDb m, SubscriptionDb m, EmailSender m) => Integer -> [Subscription] -> m [Either String ()]
+sendEmailForToday currentTime subs =
   let updatableSubscriptions = filter (shouldUpdate currentTime) subs
-  mapM sendAndUpdate updatableSubscriptions
+  in mapM sendAndUpdate updatableSubscriptions
+
   where sendAndUpdate subs = do
-          sendResult <- (send subs)
+          lessonResult <- retrieveLesson subs
+          case lessonResult of
+            Left errMsg -> return $ Left errMsg
+            Right lesson -> sendLesson subs lesson
+
+        sendLesson subs lesson = do
+          sendResult <- send lesson subs
           case sendResult of
             Left errMsg -> return sendResult
             Right _ -> updateSubscription (update subs)
+
         update s@(Subscription phase _ _) = s {phaseS = phase + 1, lastSentS = currentTime}
 
 handleDbError :: Monad m => String -> m [Either String ()]
 handleDbError errorMsg = return $ [Left errorMsg]
 
-sendDailyMails :: (Epoch m, EmailSender m, SubscriptionDb m) => m (Either [String] ())
+sendDailyMails :: (LessonDb m, Epoch m, EmailSender m, SubscriptionDb m) => m (Either [String] ())
 sendDailyMails = do
   currentTime <- currentTimeInEpoch
   maybeSubs <- loadSubscriptions
