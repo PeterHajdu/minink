@@ -83,21 +83,27 @@ createAppFolders = do
 printError :: String -> IO ()
 printError = hPutStrLn stderr
 
+createAuthenticatedConnection :: IO SMTPConnection
+createAuthenticatedConnection = do
+  smtpConn <- connectSMTPSTARTTLSWithSettings "smtp.gmail.com" (Settings 587 0 True True)
+  authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
+  return smtpConn
+
+handleResults :: Either [String] () -> IO ()
+handleResults result = case result of
+                         Left errors -> mapM_ printError errors >> exitFailure
+                         Right _ -> exitSuccess
+
 main :: IO ()
 main = do
   (lessonPath, dbPath) <- createAppFolders
-  smtpConn <- connectSMTPSTARTTLSWithSettings "smtp.gmail.com" (Settings 587 0 True True)
-  authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
+  smtpConn <- createAuthenticatedConnection
   dbConn <- SQL.open dbPath
   let config = Config smtpConn dbConn lessonPath
   result <- runSender config
   SQL.close dbConn
   closeSMTP smtpConn
-  case result of
-    Left errors -> do
-      mapM_ printError errors
-      exitFailure
-    Right _ -> exitSuccess
+  handleResults result
 
 safeIO :: MonadIO m => IO a -> m (Either String a)
 safeIO action = liftIO $ handle catchAll $ Right <$> action
