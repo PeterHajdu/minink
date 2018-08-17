@@ -17,6 +17,7 @@ import Network.HaskellNet.SMTP
 import Network.HaskellNet.Auth
 import Network.HaskellNet.SMTP.SSL
 import Control.Exception (handle, SomeException)
+import Control.Exception.Base (bracket)
 import Data.DateTime (getCurrentTime, toSeconds)
 
 import qualified Database.SQLite.Simple as SQL
@@ -33,7 +34,9 @@ data Config = Config
   , lessonBase :: String
   }
 
-newtype Sender a = Sender {run :: ReaderT Config IO a} deriving (Functor, Applicative, Monad, MonadReader Config, MonadIO)
+newtype Sender a = Sender
+  { run :: ReaderT Config IO a
+  } deriving (Functor, Applicative, Monad, MonadReader Config, MonadIO)
 
 instance EmailSender Sender where
   sendEmail address content = do
@@ -51,12 +54,10 @@ instance SubscriptionDb Sender where
     let params = [":phase" := (phaseS subs) + 1, ":lastsent" := (lastSentS subs), ":address" := (addressS subs)]
     safeIO $ SQL.executeNamed dbConn query params
 
-
 instance Epoch Sender where
   currentTimeInEpoch = do
     date <- liftIO getCurrentTime
     return $ toSeconds date
-
 
 instance LessonDb Sender where
   retrieveLesson (Subscription phase _ _) = do
@@ -90,23 +91,26 @@ createAuthenticatedConnection = do
   return smtpConn
 
 handleResults :: Either [String] () -> IO ()
-handleResults result = case result of
-                         Left errors -> mapM_ printError errors >> exitFailure
-                         Right _ -> exitSuccess
-
-main :: IO ()
-main = do
-  (lessonPath, dbPath) <- createAppFolders
-  smtpConn <- createAuthenticatedConnection
-  dbConn <- SQL.open dbPath
-  let config = Config smtpConn dbConn lessonPath
-  result <- runSender config
-  SQL.close dbConn
-  closeSMTP smtpConn
-  handleResults result
+handleResults (Left errors) = mapM_ printError errors >> exitFailure
+handleResults (Right _) = exitSuccess
 
 safeIO :: MonadIO m => IO a -> m (Either String a)
 safeIO action = liftIO $ handle catchAll $ Right <$> action
 
 catchAll :: SomeException -> IO (Either String a)
 catchAll = return . Left . show
+
+withSMTP :: (SMTPConnection -> IO ()) -> IO ()
+withSMTP = bracket createAuthenticatedConnection closeSMTP
+
+withSQL :: FilePath -> (SQL.Connection -> IO ()) -> IO ()
+withSQL dbPath = bracket (SQL.open dbPath) SQL.close
+
+main :: IO ()
+main = do
+  (lessonPath, dbPath) <- createAppFolders
+  withSMTP $ \smtpConn -> do
+    withSQL dbPath $ \dbConn -> do
+      let config = Config smtpConn dbConn lessonPath
+      result <- runSender config
+      handleResults result
