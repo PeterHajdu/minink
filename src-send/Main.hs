@@ -14,7 +14,6 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Text.Lazy as LT
 
 import Network.HaskellNet.SMTP
-import Network.HaskellNet.Auth
 import Network.HaskellNet.SMTP.SSL
 import Control.Exception (handle, SomeException)
 import Control.Exception.Base (bracket)
@@ -87,7 +86,7 @@ printError = hPutStrLn stderr
 createAuthenticatedConnection :: IO SMTPConnection
 createAuthenticatedConnection = do
   smtpConn <- connectSMTPSTARTTLSWithSettings "smtp.gmail.com" (Settings 587 0 True True)
-  authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
+  _ <- authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
   return smtpConn
 
 handleResults :: Either [String] () -> IO ()

@@ -10,8 +10,6 @@ import Time
 import Data.DateTime (fromSeconds, toGregorian')
 import Data.Either (either, lefts)
 
-import Control.Monad (void)
-
 areOnSameDay :: Integer -> Integer -> Bool
 areOnSameDay t1 t2 = (toDayPrecision t1) == (toDayPrecision t2)
   where toDayPrecision :: Integer -> (Integer, Int, Int)
@@ -25,8 +23,8 @@ send (Lesson content) (Subscription _ _ subscriber) = sendEmail subscriber conte
 send Finished _ = return $ Right ()
 
 sendEmailForToday :: (LessonDb m, SubscriptionDb m, EmailSender m) => Integer -> [Subscription] -> m [Either String ()]
-sendEmailForToday currentTime subs =
-  let updatableSubscriptions = filter (shouldUpdate currentTime) subs
+sendEmailForToday currentTime subscriptions =
+  let updatableSubscriptions = filter (shouldUpdate currentTime) subscriptions
   in mapM sendAndUpdate updatableSubscriptions
 
   where sendAndUpdate subs = do
@@ -38,7 +36,7 @@ sendEmailForToday currentTime subs =
         sendLesson subs lesson = do
           sendResult <- send lesson subs
           case sendResult of
-            Left errMsg -> return sendResult
+            Left _ -> return sendResult
             Right _ -> updateSubscription (update subs)
 
         update s@(Subscription phase _ _) = s {phaseS = phase + 1, lastSentS = currentTime}
