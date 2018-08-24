@@ -17,6 +17,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 data SubscriptionRequest = SubscriptionRequest
   { address :: !String
+  , invitationCode :: !String
   } deriving (Generic, Show)
 
 instance FromForm SubscriptionRequest
@@ -31,10 +32,9 @@ dbFile = "/home/hptr/.minink/subscriptions.db"
 subscriptionServer :: Server SubscriptionApi
 subscriptionServer = post :<|> get
   where post :: SubscriptionRequest -> Handler NoContent
-        post request = do
-          liftIO $ SQL.withConnection dbFile $ \conn -> do
-            SQL.execute conn "INSERT INTO requests VALUES (?)" $ SQL.Only (address request)
-          return NoContent
+        post request = if (invitationCode request == "hasintro2018")
+                       then liftIO $ subscribe $ address request
+                       else return NoContent
         get :: Handler H.Html
         get = return form
         form :: H.Html
@@ -42,7 +42,13 @@ subscriptionServer = post :<|> get
           H.head $ H.title "somethingsomething"
           H.body $ H.form H.! A.method "post" H.! A.action "/subscription" $ do
             H.input H.! A.type_ "text" H.! A.name "address" H.! A.placeholder "email address"
+            H.input H.! A.type_ "text" H.! A.name "invitationCode" H.! A.placeholder "invitation code"
             H.input H.! A.type_ "submit" H.! A.value "Send"
+        subscribe :: String -> IO NoContent
+        subscribe addr = do
+          SQL.withConnection dbFile $ \conn -> do
+            SQL.execute conn "INSERT INTO requests VALUES (?)" $ SQL.Only addr
+          return NoContent
 
 
 subscriptionApi :: Proxy SubscriptionApi
