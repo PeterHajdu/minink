@@ -15,11 +15,13 @@ executable minink-web
   build-depends:       base >=4.10 && <4.11,
                        minink,
                        servant-server,
+                       servant-blaze,
                        text,
                        wai,
                        warp,
-                       aeson,
-                       sqlite-simple
+                       sqlite-simple,
+                       http-api-data,
+                       blaze-html
   hs-source-dirs:      src-web
   default-language:    Haskell2010
   ghc-options:         -Weverything
