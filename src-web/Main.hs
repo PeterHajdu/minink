@@ -28,53 +28,98 @@ data SubscriptionRequest = SubscriptionRequest
 instance FromForm SubscriptionRequest
 
 type SubscriptionApi =
-  "subscription" :> ReqBody '[FormUrlEncoded] SubscriptionRequest :> Post '[HTML] NoContent :<|>
-  "subscription" :> Get '[HTML] H.Html :<|>
-  "confirm" :> QueryParam "code" String :> Get '[HTML] NoContent
+  "subscription" :> ReqBody '[FormUrlEncoded] SubscriptionRequest :> Post '[HTML] H.Html :<|>
+  Get '[HTML] H.Html :<|>
+  "confirm" :> QueryParam "code" String :> Get '[HTML] H.Html :<|>
+  "contact" :> Get '[HTML] H.Html
 
 dbFile :: FilePath
 dbFile = "/home/hptr/.minink/subscriptions.db"
 
 subscriptionServer :: Server SubscriptionApi
-subscriptionServer = post :<|> get :<|> confirm
-  where post :: SubscriptionRequest -> Handler NoContent
+subscriptionServer = post :<|> get :<|> confirm :<|> contact
+  where post :: SubscriptionRequest -> Handler H.Html
         post request = if (invitationCode request == "hasintro2018")
                        then liftIO $ subscribe $ address request
-                       else return NoContent
+                       else return $ site $ do "invalid invitation code"
+
         get :: Handler H.Html
         get = return form
+
         form :: H.Html
-        form = H.docTypeHtml $ do
-          H.head $ H.title "somethingsomething"
-          H.body $ H.form H.! A.method "post" H.! A.action "/subscription" $ do
-            H.input H.! A.type_ "text" H.! A.name "address" H.! A.placeholder "email address"
-            H.input H.! A.type_ "text" H.! A.name "invitationCode" H.! A.placeholder "invitation code"
-            H.input H.! A.type_ "submit" H.! A.value "Send"
-        subscribe :: String -> IO NoContent
+        form = enrollForm
+
+        subscribe :: String -> IO H.Html
         subscribe addr = do
           token <- generateToken
           SQL.withConnection dbFile $ \conn -> do
             SQL.setTrace conn (Just print)
             SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
-          return NoContent
-        confirm :: Maybe String -> Handler NoContent
+          return $ site $ do "a confirmation email has been sent to you"
+
+        confirm :: Maybe String -> Handler H.Html
         confirm (Just code) = do
           maybeAddress <- liftIO $ retrieveSubscriptionRequest code
-          maybe (return NoContent) confirmSubscription maybeAddress
+          maybe (return confirmOk) confirmSubscription maybeAddress
         confirm _ = do
-          return NoContent
+          return confirmOk
+
         retrieveSubscriptionRequest :: String -> IO (Maybe String)
         retrieveSubscriptionRequest code = do
           SQL.withConnection dbFile $ \conn -> do
             results <- SQL.query conn "SELECT address from requests where token=?" (SQL.Only code)
             return $ (listToMaybe (results :: [[String]])) >>= listToMaybe
-        confirmSubscription :: String -> Handler NoContent
+
+        confirmSubscription :: String -> Handler H.Html
         confirmSubscription addr = do
           liftIO $ SQL.withConnection dbFile $ \conn -> do
             SQL.setTrace conn (Just print)
             SQL.execute conn "INSERT INTO subscription VALUES (?, ?, ?)" (0::Int, 0::Int, addr)
             SQL.execute conn "DELETE FROM requests where address=?" (SQL.Only addr)
-          return NoContent
+          return confirmOk
+
+        contact :: Handler H.Html
+        contact = return $ site $ do "email me at peter.ferenc.hajdu@gmail.com"
+
+confirmOk :: H.Html
+confirmOk = site $ do "subscription confirmed"
+
+site :: H.Html -> H.Html
+site content = H.docTypeHtml $ do
+  H.head $ do
+    H.title "minink"
+    H.meta H.! A.charset "utf-8"
+    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1"
+    H.link H.! A.rel "stylesheet" H.! A.href "https://maxcdn.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+  H.body $ do
+    H.nav H.! A.class_ "navbar navbar-expand-sm bg-dark navbar-dark" $ do
+      H.a H.! A.class_ "navbar-brand" H.! A.href "/" $ do
+        "minink"
+      H.ul H.! A.class_ "navbar-nav" $ do
+        H.li H.! A.class_ "nav-item" $ do
+          H.a H.! A.class_ "nav-link" H.! A.href "contact" $ do "Contact"
+    H.div H.! A.class_ "inner container align-middle w-50" H.! A.style "margin-top:30px" $ do content
+
+enrollForm :: H.Html
+enrollForm = site $ do
+  H.h1 $ do "Introduction to Haskell"
+  H.p H.! A.style "margin-top:30px" $ do
+    "This course walks you through the basic language features in three \
+    \ weeks.  A bite sized lecture is sent to you every \
+    \ day with exercises.  If you need help you can simply reply to the \
+    \ email containing the lecture.  Knowledge of an imperative language \
+    \ such as Java might help but is not necessary.  All you need is a unix \
+    \ like operating system, 15-20 minutes every day and dedication.  Enrollment \
+    \ is free but an invitation code is required.  You can simply ask for one by \
+    \ contacting me."
+  H.form H.! A.action "/subscription" H.! A.method "post" H.! A.style "margin-top:50px" $ do
+    H.div H.! A.class_ "form-group" $ do
+      H.label H.! A.for "address" $ do "Email address:"
+      H.input H.! A.type_ "email" H.! A.class_ "form-control" H.! A.name "address"
+    H.div H.! A.class_ "form-group" $ do
+      H.label H.! A.for "invitationCode" $ do "Invitation code:"
+      H.input H.! A.type_ "text" H.! A.class_ "form-control" H.! A.name "invitationCode"
+    H.button H.! A.type_ "submit" H.! A.class_ "btn btn-primary" $ do "Enroll"
 
 subscriptionApi :: Proxy SubscriptionApi
 subscriptionApi = Proxy
