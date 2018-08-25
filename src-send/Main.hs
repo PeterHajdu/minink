@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import qualified Email as Email
 import MininkSend
 import LessonDb
 import Time
@@ -13,8 +14,6 @@ import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Text.Lazy as LT
 
-import Network.HaskellNet.SMTP
-import Network.HaskellNet.SMTP.SSL
 import Control.Exception (handle, SomeException)
 import Control.Exception.Base (bracket)
 import Data.DateTime (getCurrentTime, toSeconds)
@@ -28,7 +27,7 @@ import System.IO (FilePath, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 
 data Config = Config
-  { smtpConnection :: SMTPConnection
+  { smtpConnection :: Email.Connection
   , subsDbConnection :: SQL.Connection
   , lessonBase :: String
   }
@@ -40,7 +39,7 @@ newtype Sender a = Sender
 instance EmailSender Sender where
   sendEmail address content = do
     connection <- asks smtpConnection
-    safeIO $ sendMimeMail address "peter.ferenc.hajdu@gmail.com" "minink daily mail" "" content [] connection
+    safeIO $ Email.send connection address content
 
 instance SubscriptionDb Sender where
   loadSubscriptions = do
@@ -83,12 +82,6 @@ createAppFolders = do
 printError :: String -> IO ()
 printError = hPutStrLn stderr
 
-createAuthenticatedConnection :: IO SMTPConnection
-createAuthenticatedConnection = do
-  smtpConn <- connectSMTPSTARTTLSWithSettings "smtp.gmail.com" (Settings 587 0 True True)
-  _ <- authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
-  return smtpConn
-
 handleResults :: Either [String] () -> IO ()
 handleResults (Left errors) = mapM_ printError errors >> exitFailure
 handleResults (Right _) = exitSuccess
@@ -99,8 +92,8 @@ safeIO action = liftIO $ handle catchAll $ Right <$> action
 catchAll :: SomeException -> IO (Either String a)
 catchAll = return . Left . show
 
-withSMTP :: (SMTPConnection -> IO ()) -> IO ()
-withSMTP = bracket createAuthenticatedConnection closeSMTP
+withSMTP :: (Email.Connection -> IO ()) -> IO ()
+withSMTP = bracket Email.connect Email.close
 
 withSQL :: FilePath -> (SQL.Connection -> IO ()) -> IO ()
 withSQL dbPath = bracket (SQL.open dbPath) SQL.close

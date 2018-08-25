@@ -65,6 +65,8 @@ library
   build-depends:       base >=4.10 && <4.11,
                        sqlite-simple,
                        text,
+                       HaskellNet-SSL,
+                       HaskellNet,
                        datetime
   hs-source-dirs:      lib
   exposed-modules:     Subscription,
@@ -72,6 +74,7 @@ library
                        SubscriptionDb,
                        MininkSend,
                        Time,
+                       Email,
                        LessonDb
   default-language:    Haskell2010
   ghc-options:         -Weverything
