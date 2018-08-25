@@ -21,7 +21,9 @@ executable minink-web
                        warp,
                        sqlite-simple,
                        http-api-data,
-                       blaze-html
+                       blaze-html,
+                       bytestring,
+                       base64-bytestring
   hs-source-dirs:      src-web
   default-language:    Haskell2010
   ghc-options:         -Weverything
