@@ -40,7 +40,7 @@ type SubscriptionApi =
   "contact" :> Get '[HTML] H.Html
 
 dbFile :: FilePath
-dbFile = "/home/hptr/.minink/subscriptions.db"
+dbFile = "/home/minink/.minink/subscriptions.db"
 
 subscriptionServer :: Server SubscriptionApi
 subscriptionServer = post :<|> get :<|> confirm :<|> contact
