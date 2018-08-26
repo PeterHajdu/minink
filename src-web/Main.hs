@@ -75,7 +75,7 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
                           H.meta H.! A.charset "utf-8"
                         H.body $ do
                           H.h1 $ do "Subscription confirmation to the Introduction to Haskell course"
-                          H.a H.! A.href (H.toValue $ "https://minink.co.uk/subscription/" ++ BSC.unpack token) $ do
+                          H.a H.! A.href (H.toValue $ "https://minink.io/confirm?code=" ++ BSC.unpack token) $ do
                             "Yes, subscribe me to this course."
                           H.p $ do "If you received this email by mistake, simply delete it. You won't be subscribed \
                           \ if you don't click the confirmation link above."
@@ -107,7 +107,7 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
           return confirmOk
 
         contact :: Handler H.Html
-        contact = return $ site $ do "email me at peter.ferenc.hajdu@gmail.com"
+        contact = return $ site $ do "email me at info@minink.io"
 
 confirmOk :: H.Html
 confirmOk = site $ do "subscription confirmed"
