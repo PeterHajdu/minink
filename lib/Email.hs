@@ -8,9 +8,9 @@ import qualified Data.Text.Lazy as LT
 
 newtype Connection = Connection SMTPConnection
 
-send :: Connection -> String -> LT.Text -> IO ()
-send (Connection connection) address content =
-  sendMimeMail address "peter.ferenc.hajdu@gmail.com" "minink daily mail" "" content [] connection
+send :: Connection -> String -> String -> LT.Text -> IO ()
+send (Connection connection) address subject content =
+  sendMimeMail address "peter.ferenc.hajdu@gmail.com" subject "" content [] connection
 
 connect :: IO Connection
 connect = do

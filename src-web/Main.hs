@@ -5,6 +5,7 @@
 
 module Main where
 
+import qualified Email as Email
 import Data.Maybe (listToMaybe)
 import GHC.Generics
 import Servant
@@ -13,6 +14,7 @@ import Network.Wai.Handler.Warp
 import Control.Monad.IO.Class (liftIO)
 import qualified Database.SQLite.Simple as SQL
 import Web.FormUrlEncoded (FromForm)
+import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Data.ByteString as BS
@@ -20,6 +22,7 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64.URL as URL
 import System.IO (withBinaryFile, IOMode(ReadMode))
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Text.Lazy.Encoding (decodeUtf8)
 
 data SubscriptionRequest = SubscriptionRequest
   { address :: !String
@@ -61,7 +64,26 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
           SQL.withConnection dbFile $ \conn -> do
             SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, (round currentTime :: Integer))
             SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
+          sendConfirmationEmail token addr
           return $ site $ do "a confirmation email has been sent to you"
+
+        sendConfirmationEmail :: BS.ByteString -> String -> IO ()
+        sendConfirmationEmail token addr = do
+          let email = H.docTypeHtml $ do
+                        H.head $ do
+                          H.title "Subscription confirmation to the Introduction to Haskell course"
+                          H.meta H.! A.charset "utf-8"
+                        H.body $ do
+                          H.h1 $ do "Subscription confirmation to the Introduction to Haskell course"
+                          H.a H.! A.href (H.toValue $ "https://minink.co.uk/subscription/" ++ BSC.unpack token) $ do
+                            "Yes, subscribe me to this course."
+                          H.p $ do "If you received this email by mistake, simply delete it. You won't be subscribed \
+                          \ if you don't click the confirmation link above."
+          connection <- Email.connect
+          let rawEmail = decodeUtf8 $ renderHtml email
+          print rawEmail
+          Email.send connection addr "Introduction to Haskell confirmation" rawEmail
+          return ()
 
         confirm :: Maybe String -> Handler H.Html
         confirm (Just code) = do
@@ -108,7 +130,7 @@ site content = H.docTypeHtml $ do
 
 enrollForm :: H.Html
 enrollForm = site $ do
-  H.h1 $ do "Introduction to Haskell"
+  H.h3 $ do "Introduction to Haskell"
   H.p H.! A.style "margin-top:30px" $ do
     "This course walks you through the basic language features in three \
     \ weeks.  A bite sized lecture is sent to you every \

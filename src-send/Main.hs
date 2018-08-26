@@ -39,7 +39,7 @@ newtype Sender a = Sender
 instance EmailSender Sender where
   sendEmail address content = do
     connection <- asks smtpConnection
-    safeIO $ Email.send connection address content
+    safeIO $ Email.send connection address "minink daily" content
 
 instance SubscriptionDb Sender where
   loadSubscriptions = do
