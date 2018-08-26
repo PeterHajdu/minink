@@ -47,9 +47,9 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
         post request = do
           if (invitationCode request == "hasintro2018")
           then case consent request of
-                 Nothing -> return $ site $ do "consent is required"
+                 Nothing -> return $ site $ do "We can not enroll you without your consent."
                  Just _ -> liftIO $ subscribe $ address request
-          else return $ site $ do "invalid invitation code"
+          else return $ site $ do "We are sorry but that is an invalid invitation code.  Just email us and we will send you a valid one."
 
         get :: Handler H.Html
         get = return form
@@ -65,7 +65,7 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
             SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, (round currentTime :: Integer))
             SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
           sendConfirmationEmail token addr
-          return $ site $ do "a confirmation email has been sent to you"
+          return $ site $ do "A confirmation email has been sent to your address.  Please confirm by clicking on the link in the email."
 
         sendConfirmationEmail :: BS.ByteString -> String -> IO ()
         sendConfirmationEmail token addr = do
@@ -107,10 +107,10 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
           return confirmOk
 
         contact :: Handler H.Html
-        contact = return $ site $ do "email me at info@minink.io"
+        contact = return $ site $ do "info@minink.io"
 
 confirmOk :: H.Html
-confirmOk = site $ do "subscription confirmed"
+confirmOk = site $ do "Your subscription has been confirmed.  You should shortly receive your first lecture."
 
 site :: H.Html -> H.Html
 site content = H.docTypeHtml $ do
@@ -138,8 +138,7 @@ enrollForm = site $ do
     \ email containing the lecture.  Knowledge of an imperative language \
     \ such as Java might help but is not necessary.  All you need is a unix \
     \ like operating system, 15-20 minutes every day and dedication.  Enrollment \
-    \ is free but an invitation code is required.  You can simply ask for one by \
-    \ contacting me."
+    \ is free but an invitation code is required.  You can ask for one by emailing us."
   H.form H.! A.action "/subscription" H.! A.method "post" H.! A.style "margin-top:50px" $ do
     H.div H.! A.class_ "form-group" $ do
       H.label H.! A.for "address" $ do "Email address:"
