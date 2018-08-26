@@ -5,6 +5,7 @@
 
 module Main where
 
+import System.Environment (getArgs)
 import qualified Email as Email
 import Data.Maybe (listToMaybe)
 import GHC.Generics
@@ -178,5 +179,7 @@ generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
 
 main :: IO ()
 main = do
+  args <- getArgs
+  let port = (read $ head args) :: Int
   initDb dbFile
-  run 8081 app
+  run port app
