@@ -13,3 +13,6 @@ git clean -xfd
 cabal new-build
 SENDER_PATH=$(find . -iname "*minink-send*" | tail -1)
 cp $SENDER_PATH /home/minink/.local/bin
+
+WEB_PATH=$(find . -iname "*minink-web*" | tail -1)
+cp $WEB_PATH /home/minink/.local/bin
