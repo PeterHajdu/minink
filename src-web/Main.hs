@@ -19,10 +19,12 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64.URL as URL
 import System.IO (withBinaryFile, IOMode(ReadMode))
+import Data.Time.Clock.POSIX (getPOSIXTime)
 
 data SubscriptionRequest = SubscriptionRequest
   { address :: !String
   , invitationCode :: !String
+  , consent :: !(Maybe String)
   } deriving (Generic, Show)
 
 instance FromForm SubscriptionRequest
@@ -39,9 +41,12 @@ dbFile = "/home/hptr/.minink/subscriptions.db"
 subscriptionServer :: Server SubscriptionApi
 subscriptionServer = post :<|> get :<|> confirm :<|> contact
   where post :: SubscriptionRequest -> Handler H.Html
-        post request = if (invitationCode request == "hasintro2018")
-                       then liftIO $ subscribe $ address request
-                       else return $ site $ do "invalid invitation code"
+        post request = do
+          if (invitationCode request == "hasintro2018")
+          then case consent request of
+                 Nothing -> return $ site $ do "consent is required"
+                 Just _ -> liftIO $ subscribe $ address request
+          else return $ site $ do "invalid invitation code"
 
         get :: Handler H.Html
         get = return form
@@ -52,8 +57,9 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
         subscribe :: String -> IO H.Html
         subscribe addr = do
           token <- generateToken
+          currentTime <- getPOSIXTime
           SQL.withConnection dbFile $ \conn -> do
-            SQL.setTrace conn (Just print)
+            SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, (round currentTime :: Integer))
             SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
           return $ site $ do "a confirmation email has been sent to you"
 
@@ -97,7 +103,7 @@ site content = H.docTypeHtml $ do
         "minink"
       H.ul H.! A.class_ "navbar-nav" $ do
         H.li H.! A.class_ "nav-item" $ do
-          H.a H.! A.class_ "nav-link" H.! A.href "contact" $ do "Contact"
+          H.a H.! A.class_ "nav-link" H.! A.href "/contact" $ do "Contact"
     H.div H.! A.class_ "inner container align-middle w-50" H.! A.style "margin-top:30px" $ do content
 
 enrollForm :: H.Html
@@ -119,6 +125,16 @@ enrollForm = site $ do
     H.div H.! A.class_ "form-group" $ do
       H.label H.! A.for "invitationCode" $ do "Invitation code:"
       H.input H.! A.type_ "text" H.! A.class_ "form-control" H.! A.name "invitationCode"
+      H.div H.! A.class_ "checkbox" $ do
+        H.p $ do
+          "Minink is commited to protecting and respecting your privacy, and we'll only use your personal information \
+          \ to administer your subscription and to provide the services that you requested from us. \
+          \ In order to provide you the content requested, we need to store and process your personal data.  If you consent \
+          \ to us storing your personal data for this purpose, please tick the checkbox below."
+        H.label H.! A.for "consent" $ do
+          H.input H.! A.type_ "checkbox" H.! A.value "" H.! A.name "consent"
+          "I agree to Minink's storage and processing of my personal data."
+        H.p $ do "You may unsubscribe from the course or withdraw your consent at anytime by sending an email to us."
     H.button H.! A.type_ "submit" H.! A.class_ "btn btn-primary" $ do "Enroll"
 
 subscriptionApi :: Proxy SubscriptionApi
@@ -128,9 +144,11 @@ app :: Application
 app = serve subscriptionApi subscriptionServer
 
 initDb :: FilePath -> IO ()
-initDb dbfile = SQL.withConnection dbfile $ \conn ->
+initDb dbfile = SQL.withConnection dbfile $ \conn -> do
   SQL.execute_ conn
     "CREATE TABLE IF NOT EXISTS requests (address text not null, token varchar not null)"
+  SQL.execute_ conn
+    "CREATE TABLE IF NOT EXISTS consents (address text not null, long not null)"
 
 generateToken :: IO BS.ByteString
 generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
