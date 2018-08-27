@@ -26,7 +26,7 @@ import System.IO (FilePath, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 
 emailCredentials :: Email.Credentials
-emailCredentials = Email.Credentials "minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
+emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
 
 data Config = Config
   { subsDbConnection :: SQL.Connection

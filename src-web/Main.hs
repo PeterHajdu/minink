@@ -26,7 +26,7 @@ import System.IO (withBinaryFile, IOMode(ReadMode))
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
 emailCredentials :: Email.Credentials
-emailCredentials = Email.Credentials "minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
+emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
 
 data SubscriptionRequest = SubscriptionRequest
   { address :: !String
