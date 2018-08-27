@@ -1,7 +1,7 @@
 module EmailSender(EmailSender(..)) where
 
-import qualified Data.Text.Lazy as LT
+import qualified Data.ByteString as BS
 
 class Monad m => EmailSender m where
-  sendEmail :: String -> LT.Text -> m (Either String ())
+  sendEmail :: String -> BS.ByteString -> m (Either String ())
 

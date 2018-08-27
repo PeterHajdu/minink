@@ -44,10 +44,8 @@ executable minink-sender
                        minink,
                        sqlite-simple,
                        datetime,
-                       HaskellNet-SSL,
-                       HaskellNet,
                        mtl,
-                       text,
+                       bytestring,
                        directory
   hs-source-dirs:      src-send
   default-language:    Haskell2010
@@ -66,8 +64,8 @@ library
   build-depends:       base >=4.10 && <4.11,
                        sqlite-simple,
                        text,
-                       HaskellNet-SSL,
-                       HaskellNet,
+                       bytestring,
+                       hailgun,
                        datetime
   hs-source-dirs:      lib
   exposed-modules:     Subscription,

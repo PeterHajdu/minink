@@ -1,22 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Email(Connection, send, connect, close) where
+module Email(Credentials(..), send) where
 
-import Network.HaskellNet.SMTP
-import Network.HaskellNet.SMTP.SSL
-import qualified Data.Text.Lazy as LT
+import Mail.Hailgun
+import Control.Monad (void)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
+import qualified Data.Text as T
 
-newtype Connection = Connection SMTPConnection
+data Credentials = Credentials
+  { domainC :: String
+  , apiKeyC :: String
+  }
 
-send :: Connection -> String -> String -> LT.Text -> IO ()
-send (Connection connection) address subject content =
-  sendMimeMail address "peter.ferenc.hajdu@gmail.com" subject "" content [] connection
+toHailgunContext :: Credentials -> HailgunContext
+toHailgunContext = undefined
 
-connect :: IO Connection
-connect = do
-  smtpConn <- connectSMTPSTARTTLSWithSettings "smtp.gmail.com" (Settings 587 0 True True)
-  _ <- authenticate LOGIN "peter.ferenc.hajdu@gmail.com" "tcepjzibgwoqcwwy" smtpConn
-  return $ Connection smtpConn
-
-close :: Connection -> IO ()
-close (Connection conn) = closeSMTP conn
+send :: Credentials -> String -> String -> T.Text -> BS.ByteString -> IO ()
+send cred recipient from subject content =
+  let context = toHailgunContext cred
+      maybeMessage = hailgunMessage subject (TextAndHTML "" content) (BSC.pack from) (emptyMessageRecipients {recipientsTo = [BSC.pack recipient]}) []
+  in case maybeMessage of
+       Left err -> putStrLn err
+       Right msg -> void $ sendEmail context msg

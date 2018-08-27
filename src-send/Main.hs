@@ -12,7 +12,7 @@ import SubscriptionDb
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.Text.Lazy as LT
+import qualified Data.ByteString as BS
 
 import Control.Exception (handle, SomeException)
 import Control.Exception.Base (bracket)
@@ -20,15 +20,16 @@ import Data.DateTime (getCurrentTime, toSeconds)
 
 import qualified Database.SQLite.Simple as SQL
 import Database.SQLite.Simple (NamedParam(..))
-import qualified Data.Text.IO as TIO
 
 import System.Directory (getAppUserDataDirectory, createDirectoryIfMissing, doesFileExist)
 import System.IO (FilePath, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 
+emailCredentials :: Email.Credentials
+emailCredentials = Email.Credentials "minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
+
 data Config = Config
-  { smtpConnection :: Email.Connection
-  , subsDbConnection :: SQL.Connection
+  { subsDbConnection :: SQL.Connection
   , lessonBase :: String
   }
 
@@ -38,8 +39,7 @@ newtype Sender a = Sender
 
 instance EmailSender Sender where
   sendEmail address content = do
-    connection <- asks smtpConnection
-    safeIO $ Email.send connection address "minink daily" content
+    safeIO $ Email.send emailCredentials (address) "peter@minink.io" "minink daily" content
 
 instance SubscriptionDb Sender where
   loadSubscriptions = do
@@ -64,8 +64,8 @@ instance LessonDb Sender where
     doesExist <- liftIO $ doesFileExist fileName
     if doesExist
       then do
-        maybeContent <- safeIO $ TIO.readFile fileName
-        return $ (Lesson . LT.fromStrict) <$> maybeContent
+        maybeContent <- safeIO $ BS.readFile fileName
+        return $ Lesson <$> maybeContent
       else return $ Right $ Finished
 
 runSender :: Config -> IO (Either [String] ())
@@ -92,17 +92,13 @@ safeIO action = liftIO $ handle catchAll $ Right <$> action
 catchAll :: SomeException -> IO (Either String a)
 catchAll = return . Left . show
 
-withSMTP :: (Email.Connection -> IO ()) -> IO ()
-withSMTP = bracket Email.connect Email.close
-
 withSQL :: FilePath -> (SQL.Connection -> IO ()) -> IO ()
 withSQL dbPath = bracket (SQL.open dbPath) SQL.close
 
 main :: IO ()
 main = do
   (lessonPath, dbPath) <- createAppFolders
-  withSMTP $ \smtpConn -> do
-    withSQL dbPath $ \dbConn -> do
-      let config = Config smtpConn dbConn lessonPath
-      result <- runSender config
-      handleResults result
+  withSQL dbPath $ \dbConn -> do
+    let config = Config dbConn lessonPath
+    result <- runSender config
+    handleResults result

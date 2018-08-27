@@ -1,10 +1,10 @@
 module LessonDb(LessonDb(..), RetrieveResult(..)) where
 
 import Subscription
-import qualified Data.Text.Lazy as LT
+import qualified Data.ByteString as BS
 
 data RetrieveResult =
-    Lesson LT.Text
+    Lesson BS.ByteString
   | Finished
 
 class Monad m => LessonDb m where

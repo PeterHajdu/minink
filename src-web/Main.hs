@@ -19,11 +19,14 @@ import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64.URL as URL
 import System.IO (withBinaryFile, IOMode(ReadMode))
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Text.Lazy.Encoding (decodeUtf8)
+
+emailCredentials :: Email.Credentials
+emailCredentials = Email.Credentials "minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
 
 data SubscriptionRequest = SubscriptionRequest
   { address :: !String
@@ -80,10 +83,8 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
                             "Yes, subscribe me to this course."
                           H.p $ do "If you received this email by mistake, simply delete it. You won't be subscribed \
                           \ if you don't click the confirmation link above."
-          connection <- Email.connect
-          let rawEmail = decodeUtf8 $ renderHtml email
-          print rawEmail
-          Email.send connection addr "Introduction to Haskell confirmation" rawEmail
+          let rawEmail = BSL.toStrict $ renderHtml email
+          Email.send emailCredentials addr "peter@minink.io" "Introduction to Haskell confirmation" rawEmail
           return ()
 
         confirm :: Maybe String -> Handler H.Html
