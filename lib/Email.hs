@@ -14,7 +14,7 @@ data Credentials = Credentials
   }
 
 toHailgunContext :: Credentials -> HailgunContext
-toHailgunContext = undefined
+toHailgunContext (Credentials domain apiKey)= HailgunContext domain apiKey Nothing
 
 send :: Credentials -> String -> String -> T.Text -> BS.ByteString -> IO ()
 send cred recipient from subject content =
