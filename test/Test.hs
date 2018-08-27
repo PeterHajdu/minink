@@ -12,7 +12,7 @@ import SubscriptionDb
 import Control.Monad.State.Strict (State, runState)
 import Control.Monad.State (MonadState, put, get)
 import Test.Hspec
-import qualified Data.Text.Lazy as LT
+import qualified Data.ByteString as BS
 
 longAgo :: Integer
 longAgo = 0
@@ -23,7 +23,7 @@ today = 100000
 data MockState = MockState
   { emailSendResults :: [Either String ()]
   , subscriptionsInDb :: Either String [Subscription]
-  , emailsSentOut :: [(String, LT.Text)]
+  , emailsSentOut :: [(String, BS.ByteString)]
   , updatedSubscriptions :: [Subscription]
   , updateResults :: [Either String ()]
   , lessonResults :: [Either String RetrieveResult]
