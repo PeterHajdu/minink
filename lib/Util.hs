@@ -25,7 +25,7 @@ initDb dbfile = SQL.withConnection dbfile $ \conn -> do
   SQL.execute_ conn
     "CREATE TABLE IF NOT EXISTS subscription (phase int, lastsent long, address text)"
 
-safeSQL :: FilePath -> (SQL.Connection -> IO a) -> IO (Either String a)
+safeSQL :: MonadIO m => FilePath -> (SQL.Connection -> IO a) -> m (Either String a)
 safeSQL dbPath action = safeIO $ SQL.withConnection dbPath action
 
 safeIO :: MonadIO m => IO a -> m (Either String a)

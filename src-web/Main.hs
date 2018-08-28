@@ -54,14 +54,14 @@ debug msg = liftIO $ infoM "minink-web" msg
 errorLog :: MonadIO m => String -> m ()
 errorLog msg = liftIO $ errorM "minink-web" msg
 
-loggedSQL :: FilePath -> (SQL.Connection -> IO a) -> IO (Maybe a)
+loggedSQL :: MonadIO m => FilePath -> (SQL.Connection -> IO a) -> m (Maybe a)
 loggedSQL dbPath action = do
   result <- safeSQL dbPath action
   case result of
     Left err -> errorLog err >> return Nothing
     Right val -> return $ Just val
 
-loggedSQL_ :: FilePath -> (SQL.Connection -> IO a) -> IO ()
+loggedSQL_ :: MonadIO m => FilePath -> (SQL.Connection -> IO a) -> m ()
 loggedSQL_ db action = do
   _ <- loggedSQL db action
   return ()
