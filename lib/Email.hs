@@ -2,6 +2,7 @@
 
 module Email(Credentials(..), send) where
 
+import Util
 import Mail.Hailgun
 import Control.Monad (void)
 import qualified Data.ByteString as BS
@@ -16,10 +17,14 @@ data Credentials = Credentials
 toHailgunContext :: Credentials -> HailgunContext
 toHailgunContext (Credentials domain apiKey)= HailgunContext domain apiKey Nothing
 
-send :: Credentials -> String -> String -> T.Text -> BS.ByteString -> IO ()
+send :: Credentials -> String -> String -> T.Text -> BS.ByteString -> IO (Either String ())
 send cred recipient from subject content =
   let context = toHailgunContext cred
       maybeMessage = hailgunMessage subject (TextAndHTML "" content) (BSC.pack from) (emptyMessageRecipients {recipientsTo = [BSC.pack recipient]}) []
   in case maybeMessage of
-       Left err -> putStrLn err
-       Right msg -> void $ sendEmail context msg
+       Left err -> return $ Left err
+       Right msg -> do
+         sendResult <- sendEmail context msg
+         case sendResult of
+           Left err -> return $ Left $ show err
+           Right _ -> return $ Right ()

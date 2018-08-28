@@ -39,8 +39,8 @@ newtype Sender a = Sender
   } deriving (Functor, Applicative, Monad, MonadReader Config, MonadIO)
 
 instance EmailSender Sender where
-  sendEmail address content = do
-    safeIO $ Email.send emailCredentials (address) "peter@minink.io" "minink daily" content
+  sendEmail address content =
+    liftIO $ Email.send emailCredentials (address) "peter@minink.io" "minink daily" content
 
 instance SubscriptionDb Sender where
   loadSubscriptions = do

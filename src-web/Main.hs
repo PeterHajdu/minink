@@ -13,6 +13,7 @@ import Servant
 import Servant.HTML.Blaze
 import Network.Wai.Handler.Warp
 import Control.Monad.IO.Class (liftIO, MonadIO)
+import Control.Monad(join)
 import qualified Database.SQLite.Simple as SQL
 import Web.FormUrlEncoded (FromForm)
 import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
@@ -50,6 +51,21 @@ type SubscriptionApi =
 debug :: MonadIO m => String -> m ()
 debug msg = liftIO $ infoM "minink-web" msg
 
+errorLog :: MonadIO m => String -> m ()
+errorLog msg = liftIO $ errorM "minink-web" msg
+
+loggedSQL :: FilePath -> (SQL.Connection -> IO a) -> IO (Maybe a)
+loggedSQL dbPath action = do
+  result <- safeSQL dbPath action
+  case result of
+    Left err -> errorLog err >> return Nothing
+    Right val -> return $ Just val
+
+loggedSQL_ :: FilePath -> (SQL.Connection -> IO a) -> IO ()
+loggedSQL_ db action = do
+  _ <- loggedSQL db action
+  return ()
+
 subscriptionServer :: FilePath -> Server SubscriptionApi
 subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
   where post :: SubscriptionRequest -> Handler H.Html
@@ -70,7 +86,7 @@ subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
           token <- generateToken
           debug $ "token generated"
           currentTime <- getPOSIXTime
-          SQL.withConnection dbFile $ \conn -> do
+          loggedSQL_ dbFile $ \conn -> do
             SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, (round currentTime :: Integer))
             SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
           debug "databases updated"
@@ -91,7 +107,10 @@ subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
                           H.p $ do "If you received this email by mistake, simply delete it. You won't be subscribed \
                           \ if you don't click the confirmation link above."
           let rawEmail = BSL.toStrict $ renderHtml email
-          Email.send emailCredentials addr "peter@minink.io" "Introduction to Haskell confirmation" rawEmail
+          sendResult <- Email.send emailCredentials addr "peter@minink.io" "Introduction to Haskell confirmation" rawEmail
+          case sendResult of
+            Left err -> errorLog err
+            Right _ -> return ()
           return ()
 
         confirm :: Maybe String -> Handler H.Html
@@ -105,15 +124,15 @@ subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
 
         retrieveSubscriptionRequest :: String -> IO (Maybe String)
         retrieveSubscriptionRequest code = do
-          SQL.withConnection dbFile $ \conn -> do
+          maybeMaybe <- loggedSQL dbFile $ \conn -> do
             results <- SQL.query conn "SELECT address from requests where token=?" (SQL.Only code)
             return $ (listToMaybe (results :: [[String]])) >>= listToMaybe
+          return $ join maybeMaybe
 
         confirmSubscription :: String -> Handler H.Html
         confirmSubscription addr = do
           debug "confirm ok"
-          liftIO $ SQL.withConnection dbFile $ \conn -> do
-            SQL.setTrace conn (Just print)
+          liftIO $ loggedSQL_ dbFile $ \conn -> do
             SQL.execute conn "INSERT INTO subscription VALUES (?, ?, ?)" (0::Int, 0::Int, addr)
             SQL.execute conn "DELETE FROM requests where address=?" (SQL.Only addr)
           debug "confirm db updated"
