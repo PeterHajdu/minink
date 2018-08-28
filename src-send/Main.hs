@@ -15,7 +15,6 @@ import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString as BS
 
-import Control.Exception (handle, SomeException)
 import Control.Exception.Base (bracket)
 import Data.DateTime (getCurrentTime, toSeconds)
 
@@ -85,7 +84,7 @@ withSQL dbPath = bracket (SQL.open dbPath) SQL.close
 
 main :: IO ()
 main = do
-  (lessonPath, dbPath) <- createAppFolders
+  (lessonPath, dbPath) <- initApp
   withSQL dbPath $ \dbConn -> do
     let config = Config dbConn lessonPath
     result <- runSender config

@@ -177,13 +177,6 @@ subscriptionApi = Proxy
 app :: FilePath -> Application
 app dbFile = serve subscriptionApi (subscriptionServer dbFile)
 
-initDb :: FilePath -> IO ()
-initDb dbfile = SQL.withConnection dbfile $ \conn -> do
-  SQL.execute_ conn
-    "CREATE TABLE IF NOT EXISTS requests (address text not null, token varchar not null)"
-  SQL.execute_ conn
-    "CREATE TABLE IF NOT EXISTS consents (address text not null, long not null)"
-
 generateToken :: IO BS.ByteString
 generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
   binToken <- BS.hGet handle 64
@@ -191,13 +184,12 @@ generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
 
 main :: IO ()
 main = do
-  (_, dbFile) <- createAppFolders
+  (_, dbFile) <- initApp
   updateGlobalLogger rootLoggerName (setLevel DEBUG)
   s <- openlog "SyslogStuff" [PID] USER DEBUG
   updateGlobalLogger rootLoggerName (addHandler s)
   debug "started"
   args <- getArgs
   let port = (read $ head args) :: Int
-  initDb dbFile
   debug "db created"
   run port (app dbFile)
