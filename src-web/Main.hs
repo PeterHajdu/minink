@@ -48,7 +48,7 @@ type SubscriptionApi =
   "contact" :> Get '[HTML] H.Html
 
 debug :: MonadIO m => String -> m ()
-debug msg = liftIO $ debugM "minink-web" msg
+debug msg = liftIO $ infoM "minink-web" msg
 
 subscriptionServer :: FilePath -> Server SubscriptionApi
 subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
@@ -192,6 +192,7 @@ generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
 main :: IO ()
 main = do
   (_, dbFile) <- createAppFolders
+  updateGlobalLogger rootLoggerName (setLevel DEBUG)
   s <- openlog "SyslogStuff" [PID] USER DEBUG
   updateGlobalLogger rootLoggerName (addHandler s)
   debug "started"
