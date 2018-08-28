@@ -45,9 +45,9 @@ executable minink-sender
                        minink,
                        sqlite-simple,
                        datetime,
+                       directory,
                        mtl,
-                       bytestring,
-                       directory
+                       bytestring
   hs-source-dirs:      src-send
   default-language:    Haskell2010
   ghc-options:         -Weverything
@@ -67,9 +67,11 @@ library
                        text,
                        bytestring,
                        hailgun,
-                       datetime
+                       datetime,
+                       directory
   hs-source-dirs:      lib
   exposed-modules:     Subscription,
+                       Util,
                        EmailSender,
                        SubscriptionDb,
                        MininkSend,

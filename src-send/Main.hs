@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Util
 import qualified Email as Email
 import MininkSend
 import LessonDb
@@ -21,9 +22,10 @@ import Data.DateTime (getCurrentTime, toSeconds)
 import qualified Database.SQLite.Simple as SQL
 import Database.SQLite.Simple (NamedParam(..))
 
-import System.Directory (getAppUserDataDirectory, createDirectoryIfMissing, doesFileExist)
 import System.IO (FilePath, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
+
+import System.Directory (doesFileExist)
 
 emailCredentials :: Email.Credentials
 emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
@@ -70,14 +72,6 @@ instance LessonDb Sender where
 
 runSender :: Config -> IO (Either [String] ())
 runSender config = runReaderT (run sendDailyMails) config
-
-createAppFolders :: IO (FilePath, FilePath)
-createAppFolders = do
-  mininkBase <- getAppUserDataDirectory "minink"
-  let lessonPath = mininkBase ++ "/lessons/"
-  let dbPath = mininkBase ++ "/subscriptions.db"
-  createDirectoryIfMissing True lessonPath
-  return (lessonPath, dbPath)
 
 printError :: String -> IO ()
 printError = hPutStrLn stderr

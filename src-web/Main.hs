@@ -28,6 +28,8 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.Log.Logger
 import System.Log.Handler.Syslog
 
+import Util
+
 emailCredentials :: Email.Credentials
 emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
 
@@ -45,14 +47,11 @@ type SubscriptionApi =
   "confirm" :> QueryParam "code" String :> Get '[HTML] H.Html :<|>
   "contact" :> Get '[HTML] H.Html
 
-dbFile :: FilePath
-dbFile = "/home/minink/.minink/subscriptions.db"
-
 debug :: MonadIO m => String -> m ()
 debug msg = liftIO $ debugM "minink-web" msg
 
-subscriptionServer :: Server SubscriptionApi
-subscriptionServer = post :<|> get :<|> confirm :<|> contact
+subscriptionServer :: FilePath -> Server SubscriptionApi
+subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
   where post :: SubscriptionRequest -> Handler H.Html
         post request = do
           debug "post received"
@@ -175,8 +174,8 @@ enrollForm = site $ do
 subscriptionApi :: Proxy SubscriptionApi
 subscriptionApi = Proxy
 
-app :: Application
-app = serve subscriptionApi subscriptionServer
+app :: FilePath -> Application
+app dbFile = serve subscriptionApi (subscriptionServer dbFile)
 
 initDb :: FilePath -> IO ()
 initDb dbfile = SQL.withConnection dbfile $ \conn -> do
@@ -192,11 +191,12 @@ generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
 
 main :: IO ()
 main = do
-  s <- openlog "SyslogStuff" [PID] DAEMON DEBUG
+  (_, dbFile) <- createAppFolders
+  s <- openlog "SyslogStuff" [PID] USER DEBUG
   updateGlobalLogger rootLoggerName (addHandler s)
   debug "started"
   args <- getArgs
   let port = (read $ head args) :: Int
   initDb dbFile
   debug "db created"
-  run port app
+  run port (app dbFile)
