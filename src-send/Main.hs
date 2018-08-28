@@ -80,12 +80,6 @@ handleResults :: Either [String] () -> IO ()
 handleResults (Left errors) = mapM_ printError errors >> exitFailure
 handleResults (Right _) = exitSuccess
 
-safeIO :: MonadIO m => IO a -> m (Either String a)
-safeIO action = liftIO $ handle catchAll $ Right <$> action
-
-catchAll :: SomeException -> IO (Either String a)
-catchAll = return . Left . show
-
 withSQL :: FilePath -> (SQL.Connection -> IO ()) -> IO ()
 withSQL dbPath = bracket (SQL.open dbPath) SQL.close
 
