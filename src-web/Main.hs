@@ -12,7 +12,7 @@ import GHC.Generics
 import Servant
 import Servant.HTML.Blaze
 import Network.Wai.Handler.Warp
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (liftIO, MonadIO)
 import qualified Database.SQLite.Simple as SQL
 import Web.FormUrlEncoded (FromForm)
 import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
@@ -24,6 +24,9 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Base64.URL as URL
 import System.IO (withBinaryFile, IOMode(ReadMode))
 import Data.Time.Clock.POSIX (getPOSIXTime)
+
+import System.Log.Logger
+import System.Log.Handler.Syslog
 
 emailCredentials :: Email.Credentials
 emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
@@ -45,10 +48,14 @@ type SubscriptionApi =
 dbFile :: FilePath
 dbFile = "/home/minink/.minink/subscriptions.db"
 
+debug :: MonadIO m => String -> m ()
+debug msg = liftIO $ debugM "minink-web" msg
+
 subscriptionServer :: Server SubscriptionApi
 subscriptionServer = post :<|> get :<|> confirm :<|> contact
   where post :: SubscriptionRequest -> Handler H.Html
         post request = do
+          debug "post received"
           if (invitationCode request == "hasintro2018")
           then case consent request of
                  Nothing -> return $ site $ do "We can not enroll you without your consent."
@@ -56,19 +63,20 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
           else return $ site $ do "We are sorry but that is an invalid invitation code.  Just email us and we will send you a valid one."
 
         get :: Handler H.Html
-        get = return form
-
-        form :: H.Html
-        form = enrollForm
+        get = return enrollForm
 
         subscribe :: String -> IO H.Html
         subscribe addr = do
+          debug $ "subscribing " ++ addr
           token <- generateToken
+          debug $ "token generated"
           currentTime <- getPOSIXTime
           SQL.withConnection dbFile $ \conn -> do
             SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, (round currentTime :: Integer))
             SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
+          debug "databases updated"
           sendConfirmationEmail token addr
+          debug "confirmation email sent"
           return $ site $ do "A confirmation email has been sent to your address.  Please confirm by clicking on the link in the email."
 
         sendConfirmationEmail :: BS.ByteString -> String -> IO ()
@@ -89,8 +97,10 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
 
         confirm :: Maybe String -> Handler H.Html
         confirm (Just code) = do
+          debug "confirmation received"
           maybeAddress <- liftIO $ retrieveSubscriptionRequest code
-          maybe (return confirmOk) confirmSubscription maybeAddress
+          debug "confirmation retrieved"
+          maybe (debug "confirm nok" >> return confirmOk) confirmSubscription maybeAddress
         confirm _ = do
           return confirmOk
 
@@ -102,10 +112,12 @@ subscriptionServer = post :<|> get :<|> confirm :<|> contact
 
         confirmSubscription :: String -> Handler H.Html
         confirmSubscription addr = do
+          debug "confirm ok"
           liftIO $ SQL.withConnection dbFile $ \conn -> do
             SQL.setTrace conn (Just print)
             SQL.execute conn "INSERT INTO subscription VALUES (?, ?, ?)" (0::Int, 0::Int, addr)
             SQL.execute conn "DELETE FROM requests where address=?" (SQL.Only addr)
+          debug "confirm db updated"
           return confirmOk
 
         contact :: Handler H.Html
@@ -180,7 +192,11 @@ generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
 
 main :: IO ()
 main = do
+  s <- openlog "SyslogStuff" [PID] DAEMON DEBUG
+  updateGlobalLogger rootLoggerName (addHandler s)
+  debug "started"
   args <- getArgs
   let port = (read $ head args) :: Int
   initDb dbFile
+  debug "db created"
   run port app

@@ -24,6 +24,7 @@ executable minink-web
                        blaze-html,
                        bytestring,
                        time,
+                       hslogger,
                        base64-bytestring
   hs-source-dirs:      src-web
   default-language:    Haskell2010
