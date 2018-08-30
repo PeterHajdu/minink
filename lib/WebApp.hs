@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
-module WebApp where
+module WebApp(subscriptionApi, webApp) where
 
 import SubscriptionRequest
 import Servant
@@ -23,7 +23,7 @@ type SubscriptionApi =
 subscriptionApi :: Proxy SubscriptionApi
 subscriptionApi = Proxy
 
-subscriptionServer :: FilePath -> Server SubscriptionApi
+subscriptionServer :: d -> Server SubscriptionApi
 subscriptionServer _ = requestSubs :<|> startPage :<|> confirm :<|> contact
   where requestSubs :: SubscriptionRequest -> Handler H.Html
         requestSubs = undefined
@@ -34,5 +34,5 @@ subscriptionServer _ = requestSubs :<|> startPage :<|> confirm :<|> contact
         contact :: Handler H.Html
         contact = undefined
 
-app :: FilePath -> Application
-app dbFile = serve subscriptionApi (subscriptionServer dbFile)
+webApp :: d -> Application
+webApp dbContext = serve subscriptionApi (subscriptionServer dbContext)

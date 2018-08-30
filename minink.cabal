@@ -103,6 +103,14 @@ test-suite sender-tests
                        minink,
                        hspec,
                        mtl,
+                       transformers,
+                       servant-client,
+                       servant,
+                       servant-blaze,
+                       http-client,
+                       warp,
+                       blaze-html,
+                       stm,
                        bytestring
   hs-source-dirs:      test
   default-language:    Haskell2010

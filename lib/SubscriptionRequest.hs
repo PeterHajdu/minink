@@ -3,7 +3,7 @@
 module SubscriptionRequest(SubscriptionRequest(..)) where
 
 import GHC.Generics
-import Web.FormUrlEncoded (FromForm)
+import Web.FormUrlEncoded (FromForm, ToForm)
 
 data SubscriptionRequest = SubscriptionRequest
   { address :: !String
@@ -12,4 +12,5 @@ data SubscriptionRequest = SubscriptionRequest
   } deriving (Generic, Show)
 
 instance FromForm SubscriptionRequest
+instance ToForm SubscriptionRequest
 
