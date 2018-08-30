@@ -24,11 +24,11 @@ subscriptionApi :: Proxy SubscriptionApi
 subscriptionApi = Proxy
 
 subscriptionServer :: FilePath -> Server SubscriptionApi
-subscriptionServer _ = post :<|> get :<|> confirm :<|> contact
-  where post :: SubscriptionRequest -> Handler H.Html
-        post = undefined
-        get :: Handler H.Html
-        get = undefined
+subscriptionServer _ = requestSubs :<|> startPage :<|> confirm :<|> contact
+  where requestSubs :: SubscriptionRequest -> Handler H.Html
+        requestSubs = undefined
+        startPage :: Handler H.Html
+        startPage = undefined
         confirm :: Maybe String -> Handler H.Html
         confirm = undefined
         contact :: Handler H.Html
