@@ -69,6 +69,10 @@ library
                        hailgun,
                        datetime,
                        sqlite-simple,
+                       servant-server,
+                       servant-blaze,
+                       blaze-html,
+                       http-api-data,
                        directory
   hs-source-dirs:      lib
   exposed-modules:     Subscription,
@@ -78,6 +82,8 @@ library
                        MininkSend,
                        Time,
                        Email,
+                       WebApp,
+                       SubscriptionRequest,
                        LessonDb
   default-language:    Haskell2010
   ghc-options:         -Weverything
