@@ -3,10 +3,12 @@
 
 module WebApp(subscriptionApi, webApp) where
 
+import WebDb
 import SubscriptionRequest
 import Servant
 import Servant.HTML.Blaze
 import qualified Text.Blaze.Html5 as H
+import Control.Monad.IO.Class
 --import Network.Wai.Handler.Warp
 --import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 --import qualified Data.ByteString as BS
@@ -23,10 +25,12 @@ type SubscriptionApi =
 subscriptionApi :: Proxy SubscriptionApi
 subscriptionApi = Proxy
 
-subscriptionServer :: d -> Server SubscriptionApi
-subscriptionServer _ = requestSubs :<|> startPage :<|> confirm :<|> contact
+subscriptionServer :: WebDb m d => d -> Server SubscriptionApi
+subscriptionServer dbContext = requestSubs :<|> startPage :<|> confirm :<|> contact
   where requestSubs :: SubscriptionRequest -> Handler H.Html
-        requestSubs = undefined
+        requestSubs (SubscriptionRequest a t _) = do
+          liftIO $ runDb dbContext $ saveRequest (Address a) (Token t)
+          return site
         startPage :: Handler H.Html
         startPage = undefined
         confirm :: Maybe String -> Handler H.Html
@@ -34,5 +38,8 @@ subscriptionServer _ = requestSubs :<|> startPage :<|> confirm :<|> contact
         contact :: Handler H.Html
         contact = undefined
 
-webApp :: d -> Application
+site :: H.Html
+site = H.docTypeHtml $ do return ()
+
+webApp :: WebDb m d => d -> Application
 webApp dbContext = serve subscriptionApi (subscriptionServer dbContext)
