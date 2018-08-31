@@ -10,17 +10,12 @@ import EmailSender
 import TokenGenerator
 import WebDb
 import SubscriptionRequest
+import Subscription(initSubscription)
 import Servant
 import Servant.HTML.Blaze
 import qualified Text.Blaze.Html5 as H
 import Control.Monad.IO.Class
 import Control.Monad(void)
---import Network.Wai.Handler.Warp
---import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
---import qualified Data.ByteString as BS
---import qualified Data.ByteString.Lazy as BSL
---import qualified Data.ByteString.Char8 as BSC
---import qualified Data.ByteString.Base64.URL as URL
 
 type SubscriptionApi =
   "subscription" :> ReqBody '[FormUrlEncoded] SubscriptionRequest :> Post '[HTML] H.Html :<|>
@@ -53,7 +48,22 @@ subscriptionServer validCode dbContext = requestSubs :<|> startPage :<|> confirm
             saveRequest addr confirmationToken
 
         confirm :: Maybe String -> Handler H.Html
-        confirm = undefined
+        confirm (Just tokenStr) = do
+          liftIO $ runDb dbContext $ do
+            let token = Token tokenStr
+            maybeAddress <- getRequest token
+            either
+              (const $ return ())
+              startSubscription
+              maybeAddress
+            deleteRequest token
+          return site
+        confirm Nothing = return site
+
+        startSubscription :: WebDb m d => Address -> m ()
+        startSubscription (Address addr) = do
+          saveSubscription $ initSubscription addr
+          return ()
 
         startPage :: Handler H.Html
         startPage = undefined

@@ -1,6 +1,9 @@
-module Subscription(Subscription(..)) where
+module Subscription(Subscription(..), initSubscription) where
 
 import Database.SQLite.Simple.FromRow
+
+initSubscription :: String -> Subscription
+initSubscription addr = Subscription 0 0 addr
 
 data Subscription = Subscription
   { phaseS :: Int

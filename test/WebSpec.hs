@@ -5,6 +5,7 @@
 
 module WebSpec(webSpec) where
 
+import Data.List
 import Test.Hspec
 
 import TokenGenerator
@@ -59,8 +60,11 @@ requestWithInvalidInvitationCode = properRequest {invitationCode = "invalid code
 currentTime :: Integer
 currentTime = 424242
 
+generatedTokenStr :: String
+generatedTokenStr = "harcsabajusz"
+
 generatedToken :: Token
-generatedToken = Token "harcsabajusz"
+generatedToken = Token generatedTokenStr
 
 webSpec =
   around withApp $ do
@@ -103,6 +107,26 @@ webSpec =
           (length $ consents db) `shouldBe` 0
           (length $ emailsSentTo db) `shouldBe` 0
 
+      describe "subscription confirmation" $ do
+        it "should start the subscription" $ \(stmDb, port') -> do
+          try port' (subscribe properRequest)
+          try port' (confirmSubscription $ Just generatedTokenStr)
+          db <- liftIO $ readTVarIO stmDb
+          (length $ subscriptions db) `shouldBe` 1
+          let subscription = head $ subscriptions db
+          phaseS subscription `shouldBe` 0
+          lastSentS subscription `shouldBe` 0
+          addressS subscription `shouldBe` (address properRequest)
+
+        it "should delete the request" $ \(stmDb, port') -> do
+          try port' (subscribe properRequest)
+          try port' (confirmSubscription $ Just generatedTokenStr)
+          db <- liftIO $ readTVarIO stmDb
+          (length $ requests db) `shouldBe` 0
+
+        it "should handle invalid confirmation codes" $ \(stmDb, port') -> do
+          try port' (confirmSubscription Nothing)
+          try port' (confirmSubscription $ Just "invalid token")
 
 data Db = Db
   { requests :: [(Address, Token)]
@@ -144,9 +168,19 @@ instance WebDb (Mock IO) Table where
     modDb $ \db@(Db _ _ cons _) -> db {consents = (addr, timeStamp):cons}
     return $ Right ()
 
-  --getRequest :: Token -> m (Either String Address)
-  --deleteRequest :: Token -> m (Either String ())
-  --saveSubscription :: Subscription -> m (Either String ())
+  saveSubscription sub = do
+    modDb $ \db@(Db _ subs _ _) -> db {subscriptions = sub:subs}
+    return $ Right ()
+
+  getRequest token = do
+    table <- ask
+    db <- liftIO $ readTVarIO table
+    let maybeRequest = find (\req -> (snd req) == token) (requests db)
+    return $ maybe (Left "not found") (Right . fst) maybeRequest
+
+  deleteRequest token = do
+    modDb $ \db@(Db reqs _ _ _) -> db {requests = filter (\(_, t) -> t /= token) reqs}
+    return $ Right ()
 
   runDb db (Mock readert)  = runReaderT readert db
 
