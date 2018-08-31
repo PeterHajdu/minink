@@ -76,6 +76,8 @@ library
                        directory
   hs-source-dirs:      lib
   exposed-modules:     Subscription,
+                       TokenGenerator,
+                       HtmlContent,
                        Util,
                        WebDb,
                        EmailSender,

@@ -1,14 +1,20 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module WebApp(subscriptionApi, webApp) where
 
+import HtmlContent(confirmationEmail)
+import Time
+import EmailSender
+import TokenGenerator
 import WebDb
 import SubscriptionRequest
 import Servant
 import Servant.HTML.Blaze
 import qualified Text.Blaze.Html5 as H
 import Control.Monad.IO.Class
+import Control.Monad(void)
 --import Network.Wai.Handler.Warp
 --import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 --import qualified Data.ByteString as BS
@@ -25,21 +31,37 @@ type SubscriptionApi =
 subscriptionApi :: Proxy SubscriptionApi
 subscriptionApi = Proxy
 
-subscriptionServer :: WebDb m d => d -> Server SubscriptionApi
-subscriptionServer dbContext = requestSubs :<|> startPage :<|> confirm :<|> contact
+subscriptionServer :: (EmailSender m, TokenGenerator m, Epoch m, WebDb m d) => String -> d -> Server SubscriptionApi
+subscriptionServer validCode dbContext = requestSubs :<|> startPage :<|> confirm :<|> contact
   where requestSubs :: SubscriptionRequest -> Handler H.Html
-        requestSubs (SubscriptionRequest a t _) = do
-          liftIO $ runDb dbContext $ saveRequest (Address a) (Token t)
-          return site
-        startPage :: Handler H.Html
-        startPage = undefined
+        requestSubs (SubscriptionRequest addr invCode maybeConsent) =
+          if validCode == invCode
+          then do
+            maybe
+              (return ())
+              (const $ request $ Address addr)
+              maybeConsent
+            return site
+          else return site
+
+        request :: MonadIO m => Address -> m ()
+        request addr@(Address strAddr) =
+          void $ liftIO $ runDb dbContext $ do
+            currentTimeInEpoch >>= saveConsent addr
+            confirmationToken <- generateToken
+            sendEmail strAddr (confirmationEmail confirmationToken)
+            saveRequest addr confirmationToken
+
         confirm :: Maybe String -> Handler H.Html
         confirm = undefined
+
+        startPage :: Handler H.Html
+        startPage = undefined
         contact :: Handler H.Html
         contact = undefined
 
 site :: H.Html
 site = H.docTypeHtml $ do return ()
 
-webApp :: WebDb m d => d -> Application
-webApp dbContext = serve subscriptionApi (subscriptionServer dbContext)
+webApp :: (EmailSender m, TokenGenerator m, Epoch m, WebDb m d) => String -> d -> Application
+webApp invCode dbContext = serve subscriptionApi (subscriptionServer invCode dbContext)

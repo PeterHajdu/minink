@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -6,6 +7,9 @@ module WebSpec(webSpec) where
 
 import Test.Hspec
 
+import TokenGenerator
+import EmailSender
+import Time
 import WebApp
 import WebDb
 import Network.Wai.Handler.Warp(testWithApplication)
@@ -46,6 +50,18 @@ subscribe :<|> startPageGet :<|> confirmSubscription :<|> contact  = client subs
 properRequest :: SubscriptionRequest
 properRequest = SubscriptionRequest "harcsa.bajusz@gmail.com" "hasIntro2018" (Just "")
 
+requestWithNoConsent :: SubscriptionRequest
+requestWithNoConsent = properRequest {consent = Nothing}
+
+requestWithInvalidInvitationCode:: SubscriptionRequest
+requestWithInvalidInvitationCode = properRequest {invitationCode = "invalid code"}
+
+currentTime :: Integer
+currentTime = 424242
+
+generatedToken :: Token
+generatedToken = Token "harcsabajusz"
+
 webSpec =
   around withApp $ do
     describe "the web app" $ do
@@ -54,72 +70,90 @@ webSpec =
           try port' (subscribe properRequest)
           db <- liftIO $ readTVarIO stmDb
           (length $ requests db) `shouldBe` 1
+          let request = head $ requests db
+          (fst $ request) `shouldBe` (Address $ address properRequest)
+          (snd $ request) `shouldBe` generatedToken
+
+        it "should save the consent to the db" $ \(stmDb, port') -> do
+          try port' (subscribe properRequest)
+          db <- liftIO $ readTVarIO stmDb
+          (length $ consents db) `shouldBe` 1
+          let consent = head $ consents db
+          (fst consent) `shouldBe` (Address $ address properRequest)
+          (snd consent) `shouldBe` (currentTime)
+
+        it "should send the confirmation email to the subscriber" $ \(stmDb, port') -> do
+          try port' (subscribe properRequest)
+          db <- liftIO $ readTVarIO stmDb
+          (length $ emailsSentTo db) `shouldBe` 1
+          let email = head $ emailsSentTo db
+          return ()
+
+        it "should not save request if the consent is not checked in" $ \(stmDb, port') -> do
+          try port' (subscribe requestWithNoConsent)
+          db <- liftIO $ readTVarIO stmDb
+          (length $ requests db) `shouldBe` 0
+          (length $ consents db) `shouldBe` 0
+          (length $ emailsSentTo db) `shouldBe` 0
+
+        it "should not save request if the invitation code is invalid" $ \(stmDb, port') -> do
+          try port' (subscribe requestWithInvalidInvitationCode)
+          db <- liftIO $ readTVarIO stmDb
+          (length $ requests db) `shouldBe` 0
+          (length $ consents db) `shouldBe` 0
+          (length $ emailsSentTo db) `shouldBe` 0
 
 
 data Db = Db
   { requests :: [(Address, Token)]
   , subscriptions :: [Subscription]
   , consents :: [(Address, Integer)]
+  , emailsSentTo :: [Address]
   }
 
 type Table = TVar Db
 
-newtype DbMock m a =
-  DbMock (ReaderT Table m a)
+newtype Mock m a =
+  Mock (ReaderT Table m a)
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Table)
 
-instance WebDb (DbMock IO) Table where
-  saveRequest addr token = do
-    table <- ask
-    liftIO $ atomically $ do
-      db@(Db req _ _) <- readTVar table
-      let newDb = db {requests = (addr, token):req}
-      writeTVar table newDb
+modDb :: (MonadIO m, MonadReader Table m) => (Db -> Db) -> m ()
+modDb mod = do
+  table <- ask
+  liftIO $ atomically $ do
+    db <- readTVar table
+    writeTVar table (mod db)
+
+instance EmailSender (Mock IO) where
+  sendEmail addr mail = do
+    modDb $ \db@(Db _ _ _ emails) -> db {emailsSentTo = (Address addr):emails}
     return $ Right ()
 
-  --saveConsent :: Address -> Integer -> m (Either String ())
+instance TokenGenerator (Mock IO) where
+  generateToken = return generatedToken
+
+instance Epoch (Mock IO) where
+  currentTimeInEpoch = return currentTime
+
+instance WebDb (Mock IO) Table where
+  saveRequest addr token = do
+    modDb $ \db@(Db req _ _ _) -> db {requests = (addr, token):req}
+    return $ Right ()
+
+  saveConsent addr timeStamp = do
+    modDb $ \db@(Db _ _ cons _) -> db {consents = (addr, timeStamp):cons}
+    return $ Right ()
+
   --getRequest :: Token -> m (Either String Address)
   --deleteRequest :: Token -> m (Either String ())
   --saveSubscription :: Subscription -> m (Either String ())
-  --runDb :: d -> m a -> IO a
 
-  --getTraining trainingTitle = do
-  --  table <- ask
-  --  result <- liftIO $ atomically $ do
-  --    (trainings, _) <- readTVar table
-  --    return $ lookup trainingTitle trainings
-  --  return result
-
-  --addTraining training = do
-  --  table <- ask
-  --  result <- liftIO $ atomically $ do
-  --    (trainings, subs) <- readTVar table
-  --    writeTVar table ((trainingId training, training):trainings, subs)
-  --    return $ Just $ trainingId training
-  --  return $ result
-
-  --getTrainings = do
-  --  table <- ask
-  --  result <- liftIO $ atomically $ do
-  --    (trainings, _) <- readTVar table
-  --    return trainings
-  --  return $ snd <$> result
-
-  --addSubscription subscription = do
-  --  table <- ask
-  --  result <- liftIO $ atomically $ do
-  --    (trainings, subs) <- readTVar table
-  --    writeTVar table (trainings, subscription:subs)
-  --    return $ Just $ subscribedTraining subscription
-  --  return $ result
-
-  runDb db (DbMock readert)  = liftIO $ (runReaderT readert db)
-
+  runDb db (Mock readert)  = runReaderT readert db
 
 withApp :: ((Table, Int) -> IO ()) -> IO ()
 withApp testBody = do
-  db <- atomically $ newTVar (Db [] [] [])
-  testWithApplication (return $ webApp db) (\port -> testBody (db, port))
+  db <- atomically $ newTVar (Db [] [] [] [])
+  testWithApplication (return $ webApp (invitationCode properRequest) db) (\port -> testBody (db, port))
 
 try :: Int -> ClientM a -> IO ()
 try port' action = do

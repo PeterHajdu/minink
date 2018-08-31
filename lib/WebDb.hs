@@ -4,9 +4,9 @@
 module WebDb(WebDb(..), Address(..), Token(..)) where
 
 import Subscription(Subscription(..))
+import TokenGenerator(Token)
 
-newtype Address = Address String
-newtype Token = Token String
+newtype Address = Address String deriving (Show, Eq)
 
 class Monad m => WebDb m d | m -> d, d -> m where
   saveConsent :: Address -> Integer -> m (Either String ())
