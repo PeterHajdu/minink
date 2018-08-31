@@ -1,58 +1,73 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Main where
 
-import System.Environment (getArgs)
 import qualified Email as Email
-import Data.Maybe (listToMaybe)
-import GHC.Generics
-import Servant
-import Servant.HTML.Blaze
-import Network.Wai.Handler.Warp
-import Control.Monad.IO.Class (liftIO, MonadIO)
-import Control.Monad(join)
+import WebApp
+import Util(initApp)
+import WebDb
+import EmailSender
+import TokenGenerator
+
 import qualified Database.SQLite.Simple as SQL
-import Web.FormUrlEncoded (FromForm)
-import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Base64.URL as URL
+
 import System.IO (withBinaryFile, IOMode(ReadMode))
+import qualified Data.ByteString.Base64.URL as URL
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
+
+import Time
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
-import System.Log.Logger
-import System.Log.Handler.Syslog
+import Network.Wai.Handler.Warp(run)
 
-import Util
+import Control.Monad.Trans.Reader hiding (asks)
+import Control.Monad.Reader.Class
+import Control.Monad.IO.Class (liftIO, MonadIO)
 
-emailCredentials :: Email.Credentials
-emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
+data Config = Config
+  { dbFile :: String
+  , emailCredentials :: Email.Credentials
+  }
 
-data SubscriptionRequest = SubscriptionRequest
-  { address :: !String
-  , invitationCode :: !String
-  , consent :: !(Maybe String)
-  } deriving (Generic, Show)
+newtype MininkWeb m a =
+  MininkWeb (ReaderT Config m a)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Config)
 
-instance FromForm SubscriptionRequest
+instance WebDb (MininkWeb IO) Config where
+  saveConsent (Address addr) time = do
+    dbPath <- asks dbFile
+    result <-loggedSQL dbPath $ \conn -> do
+      SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, time)
+    return $ maybe (Left "Unable to save consent") (Right ()) result
 
-type SubscriptionApi =
-  "subscription" :> ReqBody '[FormUrlEncoded] SubscriptionRequest :> Post '[HTML] H.Html :<|>
-  Get '[HTML] H.Html :<|>
-  "confirm" :> QueryParam "code" String :> Get '[HTML] H.Html :<|>
-  "contact" :> Get '[HTML] H.Html
+  --saveRequest :: Address -> Token -> m (Either String ())
+  --getRequest :: Token -> m (Either String Address)
+  --deleteRequest :: Token -> m (Either String ())
+  --saveSubscription :: Subscription -> m (Either String ())
+  --runDb :: d -> m a -> IO a
 
-debug :: MonadIO m => String -> m ()
-debug msg = liftIO $ infoM "minink-web" msg
+instance EmailSender (MininkWeb IO) where
+  sendEmail address content = do
+    credentials <- asks emailCredentials
+    liftIO $ Email.send credentials address "peter@minink.io" "minink.io confirmation" content
 
-errorLog :: MonadIO m => String -> m ()
-errorLog msg = liftIO $ errorM "minink-web" msg
+instance TokenGenerator (MininkWeb IO) where
+  generateToken = liftIO $ withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
+    binToken <- BS.hGet handle 64
+    return $ Token $ BSC.unpack $ URL.encode binToken
+
+instance Epoch (MininkWeb IO) where
+  currentTimeInEpoch = round <$> (liftIO getPOSIXTime)
+
+main :: IO ()
+main = do
+  (_, dbPath) <- initApp
+  let config = Config dbPath (Email.Credentials "" "")
+  run 8081 (webApp "hasintro2018" config)
 
 loggedSQL :: MonadIO m => FilePath -> (SQL.Connection -> IO a) -> m (Maybe a)
 loggedSQL dbPath action = do
@@ -66,149 +81,3 @@ loggedSQL_ db action = do
   _ <- loggedSQL db action
   return ()
 
-subscriptionServer :: FilePath -> Server SubscriptionApi
-subscriptionServer dbFile = post :<|> get :<|> confirm :<|> contact
-  where post :: SubscriptionRequest -> Handler H.Html
-        post request = do
-          debug "post received"
-          if (invitationCode request == "hasintro2018")
-          then case consent request of
-                 Nothing -> return $ site $ do "We can not enroll you without your consent."
-                 Just _ -> liftIO $ subscribe $ address request
-          else return $ site $ do "We are sorry but that is an invalid invitation code.  Just email us and we will send you a valid one."
-
-        get :: Handler H.Html
-        get = return enrollForm
-
-        subscribe :: String -> IO H.Html
-        subscribe addr = do
-          debug $ "subscribing " ++ addr
-          token <- generateToken
-          debug $ "token generated"
-          currentTime <- getPOSIXTime
-          loggedSQL_ dbFile $ \conn -> do
-            SQL.execute conn "INSERT INTO consents VALUES (?, ?)" (addr, (round currentTime :: Integer))
-            SQL.execute conn "INSERT INTO requests VALUES (?, ?)" (addr, BSC.unpack token)
-          debug "databases updated"
-          sendConfirmationEmail token addr
-          debug "confirmation email sent"
-          return $ site $ do "A confirmation email has been sent to your address.  Please confirm by clicking on the link in the email."
-
-        sendConfirmationEmail :: BS.ByteString -> String -> IO ()
-        sendConfirmationEmail token addr = do
-          let email = H.docTypeHtml $ do
-                        H.head $ do
-                          H.title "Subscription confirmation to the Introduction to Haskell course"
-                          H.meta H.! A.charset "utf-8"
-                        H.body $ do
-                          H.h1 $ do "Subscription confirmation to the Introduction to Haskell course"
-                          H.a H.! A.href (H.toValue $ "https://minink.io/confirm?code=" ++ BSC.unpack token) $ do
-                            "Yes, subscribe me to this course."
-                          H.p $ do "If you received this email by mistake, simply delete it. You won't be subscribed \
-                          \ if you don't click the confirmation link above."
-          let rawEmail = BSL.toStrict $ renderHtml email
-          sendResult <- Email.send emailCredentials addr "peter@minink.io" "Introduction to Haskell confirmation" rawEmail
-          case sendResult of
-            Left err -> errorLog err
-            Right _ -> return ()
-          return ()
-
-        confirm :: Maybe String -> Handler H.Html
-        confirm (Just code) = do
-          debug "confirmation received"
-          maybeAddress <- liftIO $ retrieveSubscriptionRequest code
-          debug "confirmation retrieved"
-          maybe (debug "confirm nok" >> return confirmOk) confirmSubscription maybeAddress
-        confirm _ = do
-          return confirmOk
-
-        retrieveSubscriptionRequest :: String -> IO (Maybe String)
-        retrieveSubscriptionRequest code = do
-          maybeMaybe <- loggedSQL dbFile $ \conn -> do
-            results <- SQL.query conn "SELECT address from requests where token=?" (SQL.Only code)
-            return $ (listToMaybe (results :: [[String]])) >>= listToMaybe
-          return $ join maybeMaybe
-
-        confirmSubscription :: String -> Handler H.Html
-        confirmSubscription addr = do
-          debug "confirm ok"
-          liftIO $ loggedSQL_ dbFile $ \conn -> do
-            SQL.execute conn "INSERT INTO subscription VALUES (?, ?, ?)" (0::Int, 0::Int, addr)
-            SQL.execute conn "DELETE FROM requests where address=?" (SQL.Only addr)
-          debug "confirm db updated"
-          return confirmOk
-
-        contact :: Handler H.Html
-        contact = return $ site $ do "info@minink.io"
-
-confirmOk :: H.Html
-confirmOk = site $ do "Your subscription has been confirmed.  You should shortly receive your first lecture."
-
-site :: H.Html -> H.Html
-site content = H.docTypeHtml $ do
-  H.head $ do
-    H.title "minink"
-    H.meta H.! A.charset "utf-8"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1"
-    H.link H.! A.rel "stylesheet" H.! A.href "https://maxcdn.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
-  H.body $ do
-    H.nav H.! A.class_ "navbar navbar-expand-sm bg-dark navbar-dark" $ do
-      H.a H.! A.class_ "navbar-brand" H.! A.href "/" $ do
-        "minink"
-      H.ul H.! A.class_ "navbar-nav" $ do
-        H.li H.! A.class_ "nav-item" $ do
-          H.a H.! A.class_ "nav-link" H.! A.href "/contact" $ do "Contact"
-    H.div H.! A.class_ "inner container align-middle w-50" H.! A.style "margin-top:30px" $ do content
-
-enrollForm :: H.Html
-enrollForm = site $ do
-  H.h3 $ do "Introduction to Haskell"
-  H.p H.! A.style "margin-top:30px" $ do
-    "This course walks you through the basic language features in three \
-    \ weeks.  A bite sized lecture is sent to you every \
-    \ day with exercises.  If you need help you can simply reply to the \
-    \ email containing the lecture.  Knowledge of an imperative language \
-    \ such as Java might help but is not necessary.  All you need is a unix \
-    \ like operating system, 15-20 minutes every day and dedication.  Enrollment \
-    \ is free but an invitation code is required.  You can ask for one by emailing us."
-  H.form H.! A.action "/subscription" H.! A.method "post" H.! A.style "margin-top:50px" $ do
-    H.div H.! A.class_ "form-group" $ do
-      H.label H.! A.for "address" $ do "Email address:"
-      H.input H.! A.type_ "email" H.! A.class_ "form-control" H.! A.name "address"
-    H.div H.! A.class_ "form-group" $ do
-      H.label H.! A.for "invitationCode" $ do "Invitation code:"
-      H.input H.! A.type_ "text" H.! A.class_ "form-control" H.! A.name "invitationCode"
-      H.div H.! A.class_ "checkbox" $ do
-        H.p $ do
-          "Minink is commited to protecting and respecting your privacy, and we'll only use your personal information \
-          \ to administer your subscription and to provide the services that you requested from us. \
-          \ In order to provide you the content requested, we need to store and process your personal data.  If you consent \
-          \ to us storing your personal data for this purpose, please tick the checkbox below."
-        H.label H.! A.for "consent" $ do
-          H.input H.! A.type_ "checkbox" H.! A.value "" H.! A.name "consent"
-          "I agree to Minink's storage and processing of my personal data."
-        H.p $ do "You may unsubscribe from the course or withdraw your consent at anytime by sending an email to us."
-    H.button H.! A.type_ "submit" H.! A.class_ "btn btn-primary" $ do "Enroll"
-
-subscriptionApi :: Proxy SubscriptionApi
-subscriptionApi = Proxy
-
-app :: FilePath -> Application
-app dbFile = serve subscriptionApi (subscriptionServer dbFile)
-
-generateToken :: IO BS.ByteString
-generateToken = withBinaryFile "/dev/urandom" ReadMode $ \handle -> do
-  binToken <- BS.hGet handle 64
-  return $ URL.encode binToken
-
-main :: IO ()
-main = do
-  (_, dbFile) <- initApp
-  updateGlobalLogger rootLoggerName (setLevel DEBUG)
-  s <- openlog "SyslogStuff" [PID] USER DEBUG
-  updateGlobalLogger rootLoggerName (addHandler s)
-  debug "started"
-  args <- getArgs
-  let port = (read $ head args) :: Int
-  debug "db created"
-  run port (app dbFile)
