@@ -4,7 +4,7 @@
 
 module WebApp(subscriptionApi, webApp) where
 
-import HtmlContent(confirmationEmail)
+import qualified HtmlContent as Page
 import Time
 import EmailSender
 import TokenGenerator
@@ -33,19 +33,19 @@ subscriptionServer validCode dbContext = requestSubs :<|> startPage :<|> confirm
           if validCode == invCode
           then do
             maybe
-              (return ())
+              (return Page.noConsent)
               (const $ request $ Address addr)
               maybeConsent
-            return site
-          else return site
+          else return Page.invalidInvitationCode
 
-        request :: MonadIO m => Address -> m ()
-        request addr@(Address strAddr) =
-          void $ liftIO $ runDb dbContext $ do
+        request :: MonadIO m => Address -> m H.Html
+        request addr@(Address strAddr) = do
+          liftIO $ runDb dbContext $ do
             currentTimeInEpoch >>= saveConsent addr
             confirmationToken <- generateToken
-            sendEmail strAddr (confirmationEmail confirmationToken)
+            sendEmail strAddr (Page.confirmationEmail confirmationToken)
             saveRequest addr confirmationToken
+          return Page.pleaseConfirm
 
         confirm :: Maybe String -> Handler H.Html
         confirm (Just tokenStr) = do
@@ -57,8 +57,8 @@ subscriptionServer validCode dbContext = requestSubs :<|> startPage :<|> confirm
               startSubscription
               maybeAddress
             deleteRequest token
-          return site
-        confirm Nothing = return site
+          return Page.confirmSuccess
+        confirm Nothing = return Page.confirmSuccess
 
         startSubscription :: WebDb m d => Address -> m ()
         startSubscription (Address addr) = do
@@ -66,12 +66,10 @@ subscriptionServer validCode dbContext = requestSubs :<|> startPage :<|> confirm
           return ()
 
         startPage :: Handler H.Html
-        startPage = undefined
-        contact :: Handler H.Html
-        contact = undefined
+        startPage = return Page.startPage
 
-site :: H.Html
-site = H.docTypeHtml $ do return ()
+        contact :: Handler H.Html
+        contact = return Page.contact
 
 webApp :: (EmailSender m, TokenGenerator m, Epoch m, WebDb m d) => String -> d -> Application
 webApp invCode dbContext = serve subscriptionApi (subscriptionServer invCode dbContext)

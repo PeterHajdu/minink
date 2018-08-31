@@ -43,10 +43,10 @@ instance MimeUnrender HTML a where
 
 subscribe :: SubscriptionRequest -> ClientM H.Markup
 confirmSubscription :: Maybe String -> ClientM H.Markup
-startPageGet :: ClientM H.Markup
+startPage :: ClientM H.Markup
 contact :: ClientM H.Markup
 
-subscribe :<|> startPageGet :<|> confirmSubscription :<|> contact  = client subscriptionApi
+subscribe :<|> startPage :<|> confirmSubscription :<|> contact  = client subscriptionApi
 
 properRequest :: SubscriptionRequest
 properRequest = SubscriptionRequest "harcsa.bajusz@gmail.com" "hasIntro2018" (Just "")
@@ -124,9 +124,16 @@ webSpec =
           db <- liftIO $ readTVarIO stmDb
           (length $ requests db) `shouldBe` 0
 
-        it "should handle invalid confirmation codes" $ \(stmDb, port') -> do
+        it "should handle invalid confirmation codes" $ \(_, port') -> do
           try port' (confirmSubscription Nothing)
           try port' (confirmSubscription $ Just "invalid token")
+
+      describe "static content" $ do
+        it "should serve contact information" $ \(_, port') -> do
+          try port' contact
+
+        it "should serve the start page" $ \(_, port') -> do
+          try port' startPage
 
 data Db = Db
   { requests :: [(Address, Token)]
