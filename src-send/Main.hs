@@ -24,14 +24,23 @@ import Database.SQLite.Simple (NamedParam(..))
 import System.IO (FilePath, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 
+import Options.Applicative hiding (action)
+import Data.Semigroup ((<>))
+
 import System.Directory (doesFileExist)
 
-emailCredentials :: Email.Credentials
-emailCredentials = Email.Credentials "mg.minink.io" "744053315bee69029c36f2017e39783c-c1fe131e-8f11ee2c"
+data Options = Options
+  { emailCredentialsO :: Email.Credentials
+  }
+
+optionsParser :: Parser Options
+optionsParser = Options
+  <$> Email.credentialParser
 
 data Config = Config
   { subsDbConnection :: SQL.Connection
   , lessonBase :: String
+  , emailCredentials :: Email.Credentials
   }
 
 newtype Sender a = Sender
@@ -39,8 +48,9 @@ newtype Sender a = Sender
   } deriving (Functor, Applicative, Monad, MonadReader Config, MonadIO)
 
 instance EmailSender Sender where
-  sendEmail address content =
-    liftIO $ Email.send emailCredentials (address) "peter@minink.io" "minink daily" content
+  sendEmail address content = do
+    credentials <- asks emailCredentials
+    liftIO $ Email.send credentials (address) "peter@minink.io" "minink daily" content
 
 instance SubscriptionDb Sender where
   loadSubscriptions = do
@@ -84,8 +94,9 @@ withSQL dbPath = bracket (SQL.open dbPath) SQL.close
 
 main :: IO ()
 main = do
+  options <- execParser $ info optionsParser (fullDesc <> progDesc "minink-send")
   (lessonPath, dbPath) <- initApp
   withSQL dbPath $ \dbConn -> do
-    let config = Config dbConn lessonPath
+    let config = Config dbConn lessonPath (emailCredentialsO options)
     result <- runSender config
     handleResults result

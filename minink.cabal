@@ -49,6 +49,7 @@ executable minink-sender
                        sqlite-simple,
                        datetime,
                        directory,
+                       optparse-applicative,
                        mtl,
                        bytestring
   hs-source-dirs:      src-send
@@ -74,6 +75,7 @@ library
                        sqlite-simple,
                        servant-server,
                        servant-blaze,
+                       optparse-applicative,
                        blaze-html,
                        http-api-data,
                        directory

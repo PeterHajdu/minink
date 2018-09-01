@@ -44,14 +44,9 @@ data Config = Config
   , invitationCode :: String
   }
 
-credentialParser :: Parser Email.Credentials
-credentialParser = Email.Credentials
-  <$> strOption (long "domain")
-  <*> strOption (long "apikey")
-
 configParser :: FilePath -> Parser Config
 configParser dbPath = Config dbPath
-  <$> credentialParser
+  <$> Email.credentialParser
   <*> strOption (long "invitationcode")
 
 newtype MininkWeb m a =
@@ -109,10 +104,7 @@ main :: IO ()
 main = do
   initializeLogger
   (_, dbPath) <- initApp
-  config <- execParser $ info (configParser dbPath) ( fullDesc
-       <> progDesc "minink"
-       <> header "hello - a test for optparse-applicative" )
-
+  config <- execParser $ info (configParser dbPath) (fullDesc <> progDesc "minink-web")
   debug "Started"
   run 8081 (webApp (invitationCode config) config)
 

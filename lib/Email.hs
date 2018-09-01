@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Email(Credentials(..), send) where
+module Email(Credentials(..), send, credentialParser) where
 
 import Util
 import Mail.Hailgun
@@ -9,10 +9,17 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Text as T
 
+import Options.Applicative (Parser, strOption, long)
+
 data Credentials = Credentials
-  { domainC :: String
-  , apiKeyC :: String
+  { domainC :: !String
+  , apiKeyC :: !String
   }
+
+credentialParser :: Parser Credentials
+credentialParser = Credentials
+  <$> strOption (long "domain")
+  <*> strOption (long "apikey")
 
 toHailgunContext :: Credentials -> HailgunContext
 toHailgunContext (Credentials domain apiKey)= HailgunContext domain apiKey Nothing
