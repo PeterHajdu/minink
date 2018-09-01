@@ -1,2 +1,3 @@
  - String -> Bytestring in Token
  - Use Address everywhere instead of string
+ - Implement FromRow and ToRow for structures in db
