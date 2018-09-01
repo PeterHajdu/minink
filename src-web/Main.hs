@@ -30,6 +30,7 @@ import Control.Monad.Reader.Class
 import Control.Monad.IO.Class (liftIO, MonadIO)
 
 import System.Log.Logger
+import System.Log.Handler.Syslog
 
 import Data.Maybe (listToMaybe)
 import Control.Monad (join)
@@ -92,9 +93,17 @@ instance Epoch (MininkWeb IO) where
 
 main :: IO ()
 main = do
+  initializeLogger
+  debug "Started"
   (_, dbPath) <- initApp
   let config = Config dbPath (Email.Credentials "" "")
   run 8081 (webApp "hasintro2018" config)
+
+initializeLogger :: IO ()
+initializeLogger = do
+  updateGlobalLogger rootLoggerName (setLevel DEBUG)
+  s <- openlog "minink-web" [PID] USER DEBUG
+  updateGlobalLogger rootLoggerName (addHandler s)
 
 debug :: MonadIO m => String -> m ()
 debug msg = liftIO $ infoM "minink-web" msg
