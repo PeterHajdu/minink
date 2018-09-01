@@ -16,6 +16,7 @@ executable minink-web
                        minink,
                        servant-server,
                        servant-blaze,
+                       optparse-applicative,
                        text,
                        wai,
                        warp,

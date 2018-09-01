@@ -35,10 +35,24 @@ import System.Log.Handler.Syslog
 import Data.Maybe (listToMaybe)
 import Control.Monad (join)
 
+import Options.Applicative hiding (action)
+import Data.Semigroup ((<>))
+
 data Config = Config
   { dbFile :: String
   , emailCredentials :: Email.Credentials
+  , invitationCode :: String
   }
+
+credentialParser :: Parser Email.Credentials
+credentialParser = Email.Credentials
+  <$> strOption (long "domain")
+  <*> strOption (long "apikey")
+
+configParser :: FilePath -> Parser Config
+configParser dbPath = Config dbPath
+  <$> credentialParser
+  <*> strOption (long "invitationcode")
 
 newtype MininkWeb m a =
   MininkWeb (ReaderT Config m a)
@@ -94,10 +108,13 @@ instance Epoch (MininkWeb IO) where
 main :: IO ()
 main = do
   initializeLogger
-  debug "Started"
   (_, dbPath) <- initApp
-  let config = Config dbPath (Email.Credentials "" "")
-  run 8081 (webApp "hasintro2018" config)
+  config <- execParser $ info (configParser dbPath) ( fullDesc
+       <> progDesc "minink"
+       <> header "hello - a test for optparse-applicative" )
+
+  debug "Started"
+  run 8081 (webApp (invitationCode config) config)
 
 initializeLogger :: IO ()
 initializeLogger = do
